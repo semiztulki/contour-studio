@@ -63,6 +63,10 @@
     }
     return{push,finish};
   }
-  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother};root.ContourCore=api;
+  function pixelLine(a,b,stamp){
+    let x=Math.floor(a.x),y=Math.floor(a.y);const endX=Math.floor(b.x),endY=Math.floor(b.y),dx=Math.abs(endX-x),dy=-Math.abs(endY-y),sx=x<endX?1:-1,sy=y<endY?1:-1;let error=dx+dy;
+    while(true){stamp(x,y);if(x===endX&&y===endY)break;const twice=2*error;if(twice>=dy){error+=dy;x+=sx;}if(twice<=dx){error+=dx;y+=sy;}}
+  }
+  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine};root.ContourCore=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
