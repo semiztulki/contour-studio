@@ -36,6 +36,33 @@
     return next;
   }
   function maskCount(mask){if(!mask)return 0;let n=0;for(const value of mask)n+=value;return n;}
-  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount};root.ContourCore=api;
+  // Distance-based filtering gives the same feel at different pointer event rates.
+  function strokeSmoother(start,amount,zoom=1){
+    const strength=Math.max(0,Math.min(100,Number(amount)||0))/100;
+    const scale=Math.max(.02,Number(zoom)||1),radius=32*strength*strength/scale;
+    let raw={...start},filtered={...start};
+    function push(point){
+      if(!Number.isFinite(point.x)||!Number.isFinite(point.y))return[];
+      const dx=point.x-raw.x,dy=point.y-raw.y,distance=Math.hypot(dx,dy);
+      if(!distance)return[];
+      if(!radius){raw=filtered={...point};return[{...point}];}
+      const steps=Math.min(4096,Math.max(1,Math.ceil(distance*scale))),alpha=1-Math.exp(-distance/steps/radius),out=[];
+      for(let i=1;i<=steps;i++){
+        filtered={x:filtered.x+(raw.x+dx*i/steps-filtered.x)*alpha,y:filtered.y+(raw.y+dy*i/steps-filtered.y)*alpha};out.push(filtered);
+      }
+      raw={...point};return out;
+    }
+    function finish(){
+      if(!radius||Math.hypot(raw.x-filtered.x,raw.y-filtered.y)<.01/scale)return[{...raw}];
+      const out=[],alpha=1-Math.exp(-1/(scale*radius));
+      // Gently bring the tail to the release position instead of leaving it short.
+      for(let i=0;i<512&&Math.hypot(raw.x-filtered.x,raw.y-filtered.y)>.05/scale;i++){
+        filtered={x:filtered.x+(raw.x-filtered.x)*alpha,y:filtered.y+(raw.y-filtered.y)*alpha};out.push(filtered);
+      }
+      filtered={...raw};out.push({...raw});return out;
+    }
+    return{push,finish};
+  }
+  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother};root.ContourCore=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
