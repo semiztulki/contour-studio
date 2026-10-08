@@ -6,11 +6,11 @@
 <meta name="description" content="Браузерный редактор для раскрашивания: слои, выделение по цвету, отделение контура и горячие клавиши. Изображения обрабатываются на вашем устройстве.">
 <title>Контур — редактор для раскрашивания</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23242c35'/%3E%3Cpath d='M8 23V9h16v14H8m5-5 4-8 4 8' fill='none' stroke='%23eec278' stroke-width='2'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./style.css?v=0.1.1">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="brand-mark">К</span><span>Контур<small>Редактор для раскрашивания · 0.1</small></span></div>
+  <div class="brand"><span class="brand-mark">К</span><span>Контур<small>Редактор для раскрашивания · 0.1.1</small></span></div>
   <nav aria-label="Файл"><button id="openImage">Открыть рисунок <kbd>Ctrl O</kbd></button><button id="newDoc">Новый</button><button id="openProject">Открыть проект</button></nav>
   <div class="file-actions"><button id="saveProject">Сохранить проект</button><button class="accent" id="exportPng">Экспорт PNG</button><button id="help" class="help-button" aria-label="Горячие клавиши">?</button></div>
 </header>
@@ -36,6 +36,7 @@
   </aside>
   <section class="canvas-area" aria-label="Рабочая область">
     <div class="document-bar"><span id="docName">Без названия</span><span id="dirtyMark" hidden>● Не сохранено</span><div class="view-controls"><button id="zoomOut" aria-label="Уменьшить">−</button><button id="zoom100">100%</button><button id="zoomIn" aria-label="Увеличить">+</button><button id="fit">Вписать</button></div></div>
+    <div id="fileNotice" class="file-notice" role="status" aria-live="polite" hidden><span id="fileNoticeText"></span><button id="dismissFileNotice" aria-label="Закрыть сообщение">×</button></div>
     <div id="viewport" tabindex="0" aria-label="Холст. Пробел — перемещение, колесо — прокрутка, Ctrl и колесо — масштаб.">
       <div id="canvasWrap"><canvas id="display"></canvas><canvas id="overlay" aria-hidden="true"></canvas></div>
       <div id="welcome"><div class="welcome-symbol">К</div><h1>Начните с рисунка</h1><p>Перетащите PNG или JPEG сюда<br>или откройте файл с компьютера.</p><button class="accent" id="welcomeOpen">Открыть рисунок</button><button id="welcomeBlank">Чистый холст</button><p class="privacy">Файлы остаются на вашем устройстве.</p></div>
@@ -54,6 +55,6 @@
 <dialog id="newDialog"><form method="dialog"><h2>Новый холст</h2><div class="size-fields"><label>Ширина, px<input id="newWidth" type="number" min="1" max="8192" value="960" required></label><label>Высота, px<input id="newHeight" type="number" min="1" max="8192" value="720" required></label></div><label><input id="newWhite" type="checkbox" checked>Белый фоновый слой</label><p class="dialog-error" id="newError"></p><div class="dialog-actions"><button value="cancel">Отмена</button><button id="createDoc" class="accent" type="button">Создать</button></div></form></dialog>
 <dialog id="outlineDialog"><form method="dialog"><h2>Контур на прозрачном фоне</h2><p>Для чёрных и серых линий на белой или светлой бумаге. Исходный слой сохранится скрытым, под контуром появится слой для цвета.</p><label>Белая точка <input id="whitePoint" type="range" min="160" max="255" value="250"><output id="whitePointOut">250</output></label><p class="muted">Пиксели светлее этого значения станут прозрачными. Серые края сохранят частичную прозрачность.</p><div class="dialog-actions"><button value="cancel">Отмена</button><button id="doExtract" type="button" class="accent">Отделить контур</button></div></form></dialog>
 <dialog id="helpDialog"><form method="dialog"><h2>Горячие клавиши</h2><p>Работают в английской и русской раскладках. В полях ввода клавиши сохраняют обычное поведение.</p><div class="shortcut-grid"><kbd>B / E / G</kbd><span>Кисть / ластик / заливка</span><kbd>W / M / V</kbd><span>Цвет / прямоугольник / перемещение слоя</span><kbd>I / H</kbd><span>Пипетка / рука</span><kbd>Пробел + drag</kbd><span>Временно перемещать холст</span><kbd>Ctrl + колесо</kbd><span>Масштаб около курсора</span><kbd>[ / ]</kbd><span>Уменьшить / увеличить кисть</span><kbd>Ctrl Z</kbd><span>Отменить</span><kbd>Ctrl Shift Z / Ctrl Y</kbd><span>Повторить</span><kbd>Ctrl O</kbd><span>Открыть рисунок</span><kbd>Ctrl S</kbd><span>Сохранить проект со слоями</span><kbd>Ctrl Shift S</kbd><span>Экспорт PNG</span><kbd>Ctrl A / Ctrl D</kbd><span>Выделить всё / снять выделение</span><kbd>Ctrl J / Ctrl Shift J</kbd><span>Копировать / перенести выделенное на слой</span><kbd>Shift + выделение</kbd><span>Добавить к текущему выделению</span><kbd>Alt + выделение</kbd><span>Вычесть из выделения</span><kbd>Delete / Backspace</kbd><span>Удалить выбранные пиксели текущего слоя</span><kbd>Escape</kbd><span>Снять выделение</span></div><p class="muted">На Mac вместо Ctrl используйте ⌘. Системные сочетания и некоторые команды браузера могут иметь приоритет.</p><div class="dialog-actions"><button class="accent">Закрыть</button></div></form></dialog>
-<script src="./core.js"></script><script src="./app.js"></script>
+<script src="./core.js?v=0.1.1"></script><script src="./app.js?v=0.1.1"></script>
 </body>
 </html>
