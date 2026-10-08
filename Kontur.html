@@ -13,6 +13,7 @@
 .brush-smoothing{display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-size:.875rem;margin-top:17px}.brush-smoothing output{margin-left:auto;color:var(--muted);font-size:.75rem}.brush-smoothing input{flex-basis:100%}.smoothing-hint{font-size:.75rem;color:var(--muted);line-height:1.5;margin:7px 0 0}
 
 #canvasWrap.pixel-view canvas{image-rendering:pixelated}.view-controls select{width:96px;padding:4px 6px;background:transparent;font-variant-numeric:tabular-nums}.view-controls select option{background:#252e38}
+#toolCursorLayer{position:absolute;inset:0;overflow:hidden;pointer-events:none}#toolCursor{position:absolute;pointer-events:none;border:1px solid #fff;box-shadow:0 0 0 1px #111;background:transparent}#toolCursor.round{border-radius:50%}
 
 .brush-edge-option{margin-bottom:0}
 
@@ -20,7 +21,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="brand-mark">К</span><span>Контур<small>Редактор для раскрашивания · 0.1.5</small></span></div>
+  <div class="brand"><span class="brand-mark">К</span><span>Контур<small>Редактор для раскрашивания · 0.1.6</small></span></div>
   <nav aria-label="Файл"><button id="openImage">Открыть рисунок <kbd>Ctrl O</kbd></button><button id="newDoc">Новый</button><button id="openProject">Открыть проект</button></nav>
   <div class="file-actions"><button id="saveProject">Сохранить проект</button><button class="accent" id="exportPng">Экспорт PNG</button><button id="help" class="help-button" aria-label="Горячие клавиши">?</button></div>
 </header>
@@ -50,7 +51,7 @@
     <div class="document-bar"><span id="docName">Без названия</span><span id="dirtyMark" hidden>● Не сохранено</span><div class="view-controls"><button id="zoomOut" aria-label="Уменьшить">−</button><select id="zoom100" aria-label="Масштаб"><option value="custom" disabled>100%</option><option value="25">25%</option><option value="50">50%</option><option value="100" selected>100%</option><option value="200">200%</option><option value="400">400%</option><option value="800">800%</option><option value="1600">1600%</option><option value="3200">3200%</option><option value="6400">6400%</option></select><button id="zoomIn" aria-label="Увеличить">+</button><button id="fit">Вписать</button></div></div>
     <div id="fileNotice" class="file-notice" role="status" aria-live="polite" hidden><span id="fileNoticeText"></span><button id="dismissFileNotice" aria-label="Закрыть сообщение">×</button></div>
     <div id="viewport" tabindex="0" aria-label="Холст. Пробел — перемещение, колесо — прокрутка, Ctrl и колесо — масштаб.">
-      <div id="canvasWrap"><canvas id="display"></canvas><canvas id="overlay" aria-hidden="true"></canvas></div>
+      <div id="canvasWrap"><canvas id="display"></canvas><canvas id="overlay" aria-hidden="true"></canvas><div id="toolCursorLayer" aria-hidden="true"><div id="toolCursor" hidden></div></div></div>
       <div id="welcome"><div class="welcome-symbol">К</div><h1>Начните с рисунка</h1><p>Перетащите PNG или JPEG сюда<br>или откройте файл с компьютера.</p><button class="accent" id="welcomeOpen">Открыть рисунок</button><button id="welcomeBlank">Чистый холст</button><p class="privacy">Файлы остаются на вашем устройстве.</p></div>
     </div>
     <footer class="statusbar"><span id="status" role="status" aria-live="polite">Откройте рисунок или начните на чистом холсте.</span><span id="dimensions">960 × 720 px</span><span id="selectionInfo">Без выделения</span></footer>
@@ -151,6 +152,17 @@
   let width=960,height=720,layers=[],activeId='',selection=null,selectionCount=0,tool='brush',zoom=1,revision=0,revisionCounter=0,savedRevision=0,filename='Без названия',started=false;
   let undoStack=[],redoStack=[],space=false,gesture=null,layerCounter=0,lastPoint=null,lastSelectionSeed=null,selectionImage=null,opacityBefore=null;
   const display=$('display'),ctx=display.getContext('2d',{willReadFrequently:true}),overlay=$('overlay'),ox=overlay.getContext('2d'),viewport=$('viewport'),wrap=$('canvasWrap');
+  const toolCursor=$('toolCursor');let cursorPointer=null;
+  function updateToolCursor(p){
+    if(!cursorPointer||cursorPointer.type==='touch'||space||gesture?.kind==='pan'||!['brush','pencil','eraser'].includes(tool)||!$('welcome').hidden||document.querySelector('dialog[open]')){toolCursor.hidden=true;return;}
+    p=p||point({clientX:cursorPointer.x,clientY:cursorPointer.y});
+    const view=viewport.getBoundingClientRect();
+    if(!inBounds(p)||cursorPointer.x<view.left||cursorPointer.x>=view.right||cursorPointer.y<view.top||cursorPointer.y>=view.bottom){toolCursor.hidden=true;return;}
+    const g=gesture?.kind==='stroke'?gesture:null,pencil=g?g.pencil:tool==='pencil',size=g?g.brush:Math.max(1,Math.min(500,Math.round(Number($(pencil?'pencilSize':'brushSize').value)||1))),antialias=g?g.antialias:$('brushAntialias').checked;
+    let x,y;if(pencil){const offset=Math.floor((size-1)/2);x=Math.floor(p.x)-offset;y=Math.floor(p.y)-offset;}else{if(size===1&&!antialias)p={x:Math.floor(p.x)+.5,y:Math.floor(p.y)+.5};x=p.x-size/2;y=p.y-size/2;}
+    toolCursor.classList.toggle('round',!pencil);toolCursor.style.width=toolCursor.style.height=size*zoom+'px';toolCursor.style.transform='translate('+x*zoom+'px,'+y*zoom+'px)';toolCursor.hidden=false;
+  }
+  function trackCursor(e,p){cursorPointer={x:e.clientX,y:e.clientY,type:e.pointerType||'mouse'};updateToolCursor(p);}
   function canvas(w=width,h=height){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
   function context(c){return c.getContext('2d',{willReadFrequently:true});}
   function active(){return layers.find(l=>l.id===activeId);}
@@ -174,9 +186,9 @@
   function composite(target=ctx,b){const x=b?.x0||0,y=b?.y0||0,w=b?b.x1-x:width,h=b?b.y1-y:height;if(w<=0||h<=0)return;target.save();target.beginPath();target.rect(x,y,w,h);target.clip();target.clearRect(x,y,w,h);for(const l of layers){if(!l.visible)continue;target.globalAlpha=l.opacity;target.globalCompositeOperation=l.blend;target.drawImage(l.canvas,x,y,w,h,x,y,w,h);}target.restore();}
   function render(){composite();renderOverlay();}
   function resizeDisplay(){display.width=overlay.width=width;display.height=overlay.height=height;$('dimensions').textContent=width+' × '+height+' px';applyZoom();}
-  function applyZoom(){wrap.style.width=width*zoom+'px';wrap.style.height=height*zoom+'px';wrap.classList.toggle('pixel-view',zoom>1);const control=$('zoom100'),percent=zoom*100;control.options[0].textContent=Math.round(percent)+'%';control.value=[...control.options].some(o=>o.value!=='custom'&&Math.abs(Number(o.value)-percent)<.001)?String(Math.round(percent)):'custom';$('zoomOut').disabled=zoom<=.02;$('zoomIn').disabled=zoom>=64;}
-  function fit(){zoom=Math.max(.02,Math.min(1,(viewport.clientWidth-72)/width,(viewport.clientHeight-72)/height));applyZoom();viewport.scrollLeft=viewport.scrollTop=0;}
-  function setZoom(value,clientX,clientY){if(gesture)finishGesture();const r=wrap.getBoundingClientRect(),old=zoom;const view=viewport.getBoundingClientRect(),px=(clientX??(Math.max(r.left,view.left)+Math.min(r.left+width*old,view.left+viewport.clientWidth))/2)-r.left,py=(clientY??(Math.max(r.top,view.top)+Math.min(r.top+height*old,view.top+viewport.clientHeight))/2)-r.top;zoom=Math.max(.02,Math.min(64,value));applyZoom();viewport.scrollLeft+=px*(zoom/old-1);viewport.scrollTop+=py*(zoom/old-1);}
+  function applyZoom(){wrap.style.width=width*zoom+'px';wrap.style.height=height*zoom+'px';wrap.classList.toggle('pixel-view',zoom>1);const control=$('zoom100'),percent=zoom*100;control.options[0].textContent=Math.round(percent)+'%';control.value=[...control.options].some(o=>o.value!=='custom'&&Math.abs(Number(o.value)-percent)<.001)?String(Math.round(percent)):'custom';$('zoomOut').disabled=zoom<=.02;$('zoomIn').disabled=zoom>=64;updateToolCursor();}
+  function fit(){zoom=Math.max(.02,Math.min(1,(viewport.clientWidth-72)/width,(viewport.clientHeight-72)/height));applyZoom();viewport.scrollLeft=viewport.scrollTop=0;updateToolCursor();}
+  function setZoom(value,clientX,clientY){if(gesture)finishGesture();const r=wrap.getBoundingClientRect(),old=zoom;const view=viewport.getBoundingClientRect(),px=(clientX??(Math.max(r.left,view.left)+Math.min(r.left+width*old,view.left+viewport.clientWidth))/2)-r.left,py=(clientY??(Math.max(r.top,view.top)+Math.min(r.top+height*old,view.top+viewport.clientHeight))/2)-r.top;zoom=Math.max(.02,Math.min(64,value));applyZoom();viewport.scrollLeft+=px*(zoom/old-1);viewport.scrollTop+=py*(zoom/old-1);updateToolCursor();}
   function renderLayers(){
     const list=$('layers');list.replaceChildren();
     for(const l of [...layers].reverse()){
@@ -195,7 +207,7 @@
     $('selectionInfo').textContent=selectionCount?selectionCount.toLocaleString('ru-RU')+' px выделено':'Без выделения';$('copySelection').disabled=$('moveSelection').disabled=!selectionCount;$('invertSelection').disabled=$('deselect').disabled=!selectionCount;renderOverlay();
   }
   function renderOverlay(){ox.clearRect(0,0,width,height);if(selectionImage)ox.putImageData(selectionImage,0,0);if(gesture?.kind==='rect'){const a=gesture.start,b=gesture.last;ox.strokeStyle='#111';ox.lineWidth=1/zoom;ox.setLineDash([4/zoom,4/zoom]);ox.strokeRect(Math.min(a.x,b.x),Math.min(a.y,b.y),Math.abs(a.x-b.x),Math.abs(a.y-b.y));ox.setLineDash([]);}}
-  function selectTool(value){tool=value;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('selected',b.dataset.tool===tool));$('brushSizeControl').hidden=tool==='pencil';$('pencilSizeControl').hidden=tool!=='pencil';viewport.style.cursor={brush:'crosshair',pencil:'crosshair',eraser:'crosshair',fill:'crosshair',colorSelect:'crosshair',rect:'crosshair',move:'move',picker:'crosshair',pan:'grab'}[tool];}
+  function selectTool(value){tool=value;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('selected',b.dataset.tool===tool));$('brushSizeControl').hidden=tool==='pencil';$('pencilSizeControl').hidden=tool!=='pencil';viewport.style.cursor={brush:'crosshair',pencil:'crosshair',eraser:'crosshair',fill:'crosshair',colorSelect:'crosshair',rect:'crosshair',move:'move',picker:'crosshair',pan:'grab'}[tool];updateToolCursor();}
   function point(e){const r=wrap.getBoundingClientRect();return{x:(e.clientX-r.left)/zoom,y:(e.clientY-r.top)/zoom};}
   function inBounds(p){return p.x>=0&&p.y>=0&&p.x<width&&p.y<height;}
   function seedAt(p){return Math.floor(p.y)*width+Math.floor(p.x);}
@@ -218,9 +230,9 @@
   function drawSegment(p){const g=gesture;if(!g.pencil&&!g.antialias&&g.brush===1)p={x:Math.floor(p.x)+.5,y:Math.floor(p.y)+.5};extendStrokeBounds(p);if(g.pencil){extendStrokeBounds(g.last);const sc=context(g.stroke),offset=Math.floor((g.brush-1)/2);C.pixelLine(g.last,p,(x,y)=>sc.fillRect(x-offset,y-offset,g.brush,g.brush));g.last=p;}else{const points=g.smoother.push(p);if(points.length)strokePoints([points[points.length-1]]);}}
   function scheduleStrokePaint(){const g=gesture;if(g.paintPending)return;g.paintPending=true;requestAnimationFrame(()=>{g.paintPending=false;if(gesture===g)paintStroke();});}
   function paintStroke(){const g=gesture,b=g.bounds;if(!b)return;g.bounds=null;const x=b.x0,y=b.y0,bw=b.x1-x,bh=b.y1-y;if(bw<=0||bh<=0)return;captureStrokeTiles(g,b);const tc=context(g.temp);tc.save();tc.beginPath();tc.rect(x,y,bw,bh);tc.clip();tc.globalCompositeOperation='source-over';tc.clearRect(x,y,bw,bh);tc.drawImage(g.stroke,x,y,bw,bh,x,y,bw,bh);if(!g.antialias&&!g.pencil){const image=tc.getImageData(x,y,bw,bh),data=image.data,rgb=[1,3,5].map(i=>parseInt(g.color.slice(i,i+2),16));for(let i=0;i<data.length;i+=4){data[i+3]=data[i+3]>=128?255:0;if(data[i+3]){data[i]=rgb[0];data[i+1]=rgb[1];data[i+2]=rgb[2];}}tc.putImageData(image,x,y);}if(g.mask){tc.globalCompositeOperation='destination-in';tc.drawImage(g.mask,x,y,bw,bh,x,y,bw,bh);}tc.restore();restoreStrokeRegion(g,b);const lc=context(g.layer.canvas);lc.save();lc.beginPath();lc.rect(x,y,bw,bh);lc.clip();lc.globalAlpha=g.opacity;lc.globalCompositeOperation=g.erase?'destination-out':'source-over';lc.drawImage(g.temp,x,y,bw,bh,x,y,bw,bh);lc.restore();composite(ctx,b);}
-  function finishGesture(cancel=false){if(!gesture)return;const g=gesture;if(g.kind==='stroke'&&!cancel){if(!g.pencil)strokePoints(g.smoother.finish(),true);paintStroke();}gesture=null;if(g.kind==='stroke'){if(cancel){for(const t of g.before.tiles)context(g.layer.canvas).putImageData(t.data,t.x,t.y);render();}else{markLayerChanged(g.layer);changed(g.before,true);}}else if(g.kind==='move'){if(cancel){context(g.layer.canvas).clearRect(0,0,width,height);context(g.layer.canvas).drawImage(g.base,0,0);render();}else{markLayerChanged(g.layer);changed(g.before);}}else if(g.kind==='rect'&&!cancel){const mask=new Uint8Array(width*height),x0=Math.max(0,Math.floor(Math.min(g.start.x,g.last.x))),x1=Math.min(width,Math.ceil(Math.max(g.start.x,g.last.x))),y0=Math.max(0,Math.floor(Math.min(g.start.y,g.last.y))),y1=Math.min(height,Math.ceil(Math.max(g.start.y,g.last.y)));for(let y=y0;y<y1;y++)mask.fill(1,y*width+x0,y*width+x1);setSelection(C.combineMasks(selection,mask,g.mode));}renderOverlay();viewport.style.cursor=tool==='pan'?'grab':viewport.style.cursor;}
+  function finishGesture(cancel=false){if(!gesture)return;const g=gesture;if(g.kind==='stroke'&&!cancel){if(!g.pencil)strokePoints(g.smoother.finish(),true);paintStroke();}gesture=null;if(g.kind==='stroke'){if(cancel){for(const t of g.before.tiles)context(g.layer.canvas).putImageData(t.data,t.x,t.y);render();}else{markLayerChanged(g.layer);changed(g.before,true);}}else if(g.kind==='move'){if(cancel){context(g.layer.canvas).clearRect(0,0,width,height);context(g.layer.canvas).drawImage(g.base,0,0);render();}else{markLayerChanged(g.layer);changed(g.before);}}else if(g.kind==='rect'&&!cancel){const mask=new Uint8Array(width*height),x0=Math.max(0,Math.floor(Math.min(g.start.x,g.last.x))),x1=Math.min(width,Math.ceil(Math.max(g.start.x,g.last.x))),y0=Math.max(0,Math.floor(Math.min(g.start.y,g.last.y))),y1=Math.min(height,Math.ceil(Math.max(g.start.y,g.last.y)));for(let y=y0;y<y1;y++)mask.fill(1,y*width+x0,y*width+x1);setSelection(C.combineMasks(selection,mask,g.mode));}renderOverlay();viewport.style.cursor=tool==='pan'?'grab':viewport.style.cursor;updateToolCursor();}
   viewport.addEventListener('pointerdown',e=>{
-    if(e.target.closest('#welcome'))return;if(e.button!==0&&e.button!==1)return;viewport.focus({preventScroll:true});const p=point(e);lastPoint=p;
+    if(e.target.closest('#welcome'))return;if(e.button!==0&&e.button!==1)return;viewport.focus({preventScroll:true});const p=point(e);lastPoint=p;trackCursor(e,p);
     if(space||tool==='pan'||e.button===1){gesture={kind:'pan',startX:e.clientX,startY:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop,pointerId:e.pointerId};viewport.style.cursor='grabbing';}
     else if(!inBounds(p))return;
     else if(tool==='colorSelect')selectByColor(p,e);
@@ -229,12 +241,13 @@
     else if(tool==='rect')gesture={kind:'rect',start:p,last:p,mode:e.altKey?'subtract':e.shiftKey||$('addSelection').checked?'add':'replace',pointerId:e.pointerId};
     else if(tool==='move'){if(!editable())return;const base=canvas();context(base).drawImage(active().canvas,0,0);gesture={kind:'move',start:p,last:p,base,layer:active(),before:snapshot(),pointerId:e.pointerId};}
     else beginStroke(p,e);
-    if(gesture)viewport.setPointerCapture(e.pointerId);e.preventDefault();
+    if(gesture)viewport.setPointerCapture(e.pointerId);updateToolCursor(p);e.preventDefault();
   });
-  viewport.addEventListener('pointermove',e=>{lastPoint=point(e);const g=gesture;if(!g||g.pointerId!==e.pointerId)return;if(g.kind==='pan'){viewport.scrollLeft=g.left+g.startX-e.clientX;viewport.scrollTop=g.top+g.startY-e.clientY;}else if(g.kind==='stroke'){const samples=e.getCoalescedEvents?.()||[];for(const sample of samples)drawSegment(point(sample));drawSegment(lastPoint);scheduleStrokePaint();}else if(g.kind==='rect'){g.last=lastPoint;renderOverlay();}else if(g.kind==='move'){g.last=lastPoint;const lc=context(g.layer.canvas);lc.clearRect(0,0,width,height);lc.drawImage(g.base,Math.round(lastPoint.x-g.start.x),Math.round(lastPoint.y-g.start.y));render();}});
+  viewport.addEventListener('pointerenter',e=>trackCursor(e));viewport.addEventListener('pointerleave',()=>{cursorPointer=null;updateToolCursor();});viewport.addEventListener('scroll',()=>updateToolCursor(),{passive:true});window.addEventListener('resize',()=>updateToolCursor());
+  viewport.addEventListener('pointermove',e=>{lastPoint=point(e);trackCursor(e,lastPoint);const g=gesture;if(!g||g.pointerId!==e.pointerId)return;if(g.kind==='pan'){viewport.scrollLeft=g.left+g.startX-e.clientX;viewport.scrollTop=g.top+g.startY-e.clientY;}else if(g.kind==='stroke'){const samples=e.getCoalescedEvents?.()||[];for(const sample of samples)drawSegment(point(sample));drawSegment(lastPoint);scheduleStrokePaint();}else if(g.kind==='rect'){g.last=lastPoint;renderOverlay();}else if(g.kind==='move'){g.last=lastPoint;const lc=context(g.layer.canvas);lc.clearRect(0,0,width,height);lc.drawImage(g.base,Math.round(lastPoint.x-g.start.x),Math.round(lastPoint.y-g.start.y));render();}});
   viewport.addEventListener('pointerup',e=>{if(gesture?.pointerId===e.pointerId){if(gesture.kind==='stroke')drawSegment(point(e));finishGesture();}});viewport.addEventListener('pointercancel',()=>finishGesture(true));
   viewport.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey){e.preventDefault();setZoom(zoom*Math.exp(-e.deltaY*.002),e.clientX,e.clientY);}},{passive:false});
-  window.addEventListener('blur',()=>{space=false;finishGesture();});
+  window.addEventListener('blur',()=>{space=false;cursorPointer=null;finishGesture();updateToolCursor();});
   function safeReplace(){return revision===savedRevision||confirm('В проекте есть несохранённые изменения. Открыть другой файл и оставить их без сохранения?');}
   function initialize(w,h,name,white=true){validateSize(w,h);width=w;height=h;layers=[];layerCounter=0;if(white){const bg=layer('Бумага');context(bg.canvas).fillStyle='#fff';context(bg.canvas).fillRect(0,0,w,h);bg.locked=true;layers.push(bg);}const paint=layer('Цвет');layers.push(paint);activeId=paint.id;revision=revisionCounter=savedRevision=0;filename=name;undoStack=[];redoStack=[];setSelection(null);resizeDisplay();render();renderLayers();updateDirty();requestAnimationFrame(fit);}
   async function decodeFile(file){if(file.size>80*1024*1024)throw Error('Файл слишком велик: предел 80 МБ.');const url=URL.createObjectURL(file);try{return await decodeUrl(url);}finally{URL.revokeObjectURL(url);}}
@@ -266,6 +279,7 @@
   $('layerOpacity').oninput=()=>{if(!opacityBefore)opacityBefore=snapshot();active().opacity=Number($('layerOpacity').value)/100;$('layerOpacityOut').value=$('layerOpacity').value+'%';render();};
   $('layerOpacity').onchange=()=>{if(opacityBefore){const s=opacityBefore;opacityBefore=null;changed(s);}};
   $('blendMode').onchange=()=>{const s=snapshot();active().blend=$('blendMode').value;changed(s);};
+  $('brushSize').oninput=$('pencilSize').oninput=$('brushAntialias').onchange=()=>updateToolCursor();
   $('brushOpacity').oninput=()=>{$('brushOpacityOut').value=$('brushOpacity').value+'%';};$('color').oninput=()=>setColor($('color').value);
   try{const value=localStorage.getItem('contour-brush-smoothing');if(value!==null&&Number.isFinite(Number(value)))$('brushSmoothing').value=Math.max(0,Math.min(100,Number(value)));}catch{}
   $('brushSmoothingOut').value=$('brushSmoothing').value+'%';
@@ -279,9 +293,9 @@
     if(mod){switch(e.code){case 'KeyZ':e.shiftKey?redo():undo();break;case 'KeyY':redo();break;case 'KeyO':$('imageInput').click();break;case 'KeyS':e.shiftKey?exportPng():saveProject();break;case 'KeyA':setSelection(new Uint8Array(width*height).fill(1));break;case 'KeyD':setSelection(null);break;case 'KeyJ':copySelection(e.shiftKey);break;default:handled=false;}}
     else if(!e.altKey){const tools={KeyB:'brush',KeyP:'pencil',KeyE:'eraser',KeyG:'fill',KeyW:'colorSelect',KeyM:'rect',KeyV:'move',KeyI:'picker',KeyH:'pan'};if(tools[e.code])selectTool(tools[e.code]);else switch(e.code){case 'Space':space=true;break;case 'Escape':if(gesture)finishGesture(true);else setSelection(null);break;case 'Delete':case 'Backspace':deletePixels();break;case 'BracketLeft':{const size=$(tool==='pencil'?'pencilSize':'brushSize');size.value=Math.max(1,Number(size.value)-(tool==='pencil'?1:5));break;}case 'BracketRight':{const size=$(tool==='pencil'?'pencilSize':'brushSize');size.value=Math.min(500,Number(size.value)+(tool==='pencil'?1:5));break;}case 'F1':$('helpDialog').showModal();break;default:handled=false;}}
     else handled=false;
-    if(handled)e.preventDefault();
+    if(handled){e.preventDefault();updateToolCursor();}
   });
-  document.addEventListener('keyup',e=>{if(e.code==='Space')space=false;});
+  document.addEventListener('keyup',e=>{if(e.code==='Space'){space=false;updateToolCursor();}});
   window.addEventListener('beforeunload',e=>{if(revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   viewport.addEventListener('dragover',e=>{e.preventDefault();});viewport.addEventListener('drop',e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f?.name.toLowerCase().endsWith('.contour'))openProjectFile(f);else openImageFile(f);});
   initialize(960,720,'Без названия');selectTool('brush');
