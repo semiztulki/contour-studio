@@ -4,3 +4,5 @@
 .brush-smoothing{display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-size:.875rem;margin-top:17px}.brush-smoothing output{margin-left:auto;color:var(--muted);font-size:.75rem}.brush-smoothing input{flex-basis:100%}.smoothing-hint{font-size:.75rem;color:var(--muted);line-height:1.5;margin:7px 0 0}
 
 #canvasWrap.pixel-view canvas{image-rendering:pixelated}.view-controls select{width:96px;padding:4px 6px;background:transparent;font-variant-numeric:tabular-nums}.view-controls select option{background:#252e38}
+
+.brush-edge-option{margin-bottom:0}
