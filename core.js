@@ -67,6 +67,20 @@
     let x=Math.floor(a.x),y=Math.floor(a.y);const endX=Math.floor(b.x),endY=Math.floor(b.y),dx=Math.abs(endX-x),dy=-Math.abs(endY-y),sx=x<endX?1:-1,sy=y<endY?1:-1;let error=dx+dy;
     while(true){stamp(x,y);if(x===endX&&y===endY)break;const twice=2*error;if(twice>=dy){error+=dy;x+=sx;}if(twice<=dx){error+=dx;y+=sy;}}
   }
-  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine};root.ContourCore=api;
+  // Trace oriented pixel edges into closed loops, including holes. Collinear
+  // edges share one SVG command, so large rectangular selections stay compact.
+  function selectionOutline(mask,width,height){
+    if(!mask)return '';const edges=new Uint8Array(mask.length),out=[];
+    for(let i=0;i<mask.length;i++){if(!mask[i])continue;const x=i%width,y=Math.floor(i/width);edges[i]=(y===0||!mask[i-width]?1:0)|(x===width-1||!mask[i+1]?2:0)|(y===height-1||!mask[i+width]?4:0)|(x===0||!mask[i-1]?8:0);}
+    function edgeAt(x,y,d){const px=x-(d===1||d===2?1:0),py=y-(d===2||d===3?1:0);if(px<0||py<0||px>=width||py>=height)return -1;const i=py*width+px;return edges[i]&(1<<d)?i:-1;}
+    for(let i=0;i<edges.length;i++)while(edges[i]){
+      let d=0;while(!(edges[i]&(1<<d)))d++;const px=i%width,py=Math.floor(i/width),sx=px+(d===1||d===2?1:0),sy=py+(d===2||d===3?1:0);let x=sx,y=sy,j=i;out.push('M'+x+' '+y);
+      while(true){edges[j]&=~(1<<d);x+=[1,0,-1,0][d];y+=[0,1,0,-1][d];if(x===sx&&y===sy){out.push(d%2?'V'+y:'H'+x);out.push('Z');break;}
+        let next=-1,nd=d;for(const candidate of [(d+1)%4,d,(d+3)%4,(d+2)%4]){next=edgeAt(x,y,candidate);if(next>=0){nd=candidate;break;}}if(next<0)throw Error('Unclosed selection boundary');if(nd!==d)out.push(d%2?'V'+y:'H'+x);d=nd;j=next;
+      }
+    }
+    return out.join('');
+  }
+  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine,selectionOutline};root.ContourCore=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
