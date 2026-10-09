@@ -21,11 +21,13 @@
 
 #viewport{outline:none}#viewport.keyboard-focus:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
+.tools .tool-group{position:relative;width:60px;margin-bottom:5px}.tools .tool-group>[data-tool]{margin-bottom:0}.tools .tool-menu-arrow{position:absolute;right:1px;bottom:1px;display:grid;place-items:center;width:20px;height:20px;min-height:0;margin:0;padding:0;border-radius:3px;font-size:.9rem;background:var(--panel2);border:1px solid var(--border)}.tools .tool-menu-arrow.selected{background:#405262;border-color:#8297a8}.tool-menu{position:fixed;z-index:50;width:min(290px,calc(100vw - 16px));padding:5px;background:var(--panel);border:1px solid #8297a8;border-radius:7px;box-shadow:0 8px 24px #0007}.tool-menu button{width:100%;display:flex;align-items:center;gap:10px;text-align:left;white-space:normal;background:transparent;border-color:transparent;padding:10px 8px}.tool-menu button[aria-checked=true]{background:#405262}.tool-menu button small{display:block;font-size:.75rem;color:var(--muted);line-height:1.4;margin-top:3px}.mode-icon{font-size:1.4rem}.mode-check{margin-left:auto;color:var(--accent);visibility:hidden}.tool-menu button[aria-checked=true] .mode-check{visibility:visible}.selection-mode-label{padding:5px 9px;border:1px solid var(--border);border-radius:4px;color:var(--muted);white-space:nowrap}@media(max-width:760px){.tools .tool-group{width:52px}}
+
 </style>
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="brand-mark">К</span><span>Контур<small>Редактор для раскрашивания · 0.1.8</small></span></div>
+  <div class="brand"><span class="brand-mark">К</span><span>Контур<small>Редактор для раскрашивания · 0.1.9</small></span></div>
   <nav aria-label="Файл"><button id="openImage">Открыть рисунок <kbd>Ctrl O</kbd></button><button id="newDoc">Новый</button><button id="openProject">Открыть проект</button></nav>
   <div class="file-actions"><button id="saveProject">Сохранить проект</button><button class="accent" id="exportPng">Экспорт PNG</button><button id="help" class="help-button" aria-label="Горячие клавиши">?</button></div>
 </header>
@@ -35,7 +37,7 @@
   <label id="pencilSizeControl" hidden>Размер <input id="pencilSize" type="number" value="1" min="1" max="500" step="1" aria-label="Размер карандаша"><span>px</span></label>
   <label>Непрозрачность <input id="brushOpacity" type="range" min="1" max="100" value="100"><output id="brushOpacityOut">100%</output></label>
   <label>Допуск <input id="tolerance" type="number" min="0" max="255" value="30" aria-label="Допуск выделения и заливки"></label>
-  <label><input id="contiguous" type="checkbox">Смежные пиксели</label>
+  <span id="colorSelectionModeLabel" class="selection-mode-label" hidden>Одна область</span>
   <label>Образец <select id="sampleSource"><option value="merged">Видимые слои</option><option value="layer">Текущий слой</option></select></label>
 </div>
 <main class="workspace">
@@ -45,7 +47,7 @@
     <button data-tool="eraser" title="Ластик (E)"><span>▱</span><small>Ластик</small><kbd>E</kbd></button>
     <button data-tool="fill" title="Заливка (G)"><span>◩</span><small>Заливка</small><kbd>G</kbd></button>
     <div class="tool-divider"></div>
-    <button data-tool="colorSelect" title="Выделение по цвету (W)"><span>✧</span><small>По цвету</small><kbd>W</kbd></button>
+    <div class="tool-group"><button data-tool="colorSelect" title="Одна область по цвету (W)"><span id="colorSelectionIcon">✧</span><small id="colorSelectionToolName">По цвету</small><kbd>W</kbd></button><button id="colorSelectionMenuButton" class="tool-menu-arrow" aria-label="Режим выделения по цвету" aria-haspopup="menu" aria-expanded="false" aria-controls="colorSelectionMenu" title="Режим выделения по цвету">▾</button></div>
     <button data-tool="rect" title="Прямоугольное выделение (M)"><span>▧</span><small>Область</small><kbd>M</kbd></button>
     <button data-tool="move" title="Перемещение слоя (V)"><span>✥</span><small>Слой</small><kbd>V</kbd></button>
     <button data-tool="picker" title="Пипетка (I)"><span>⌖</span><small>Пипетка</small><kbd>I</kbd></button>
@@ -62,13 +64,14 @@
   </section>
   <aside class="sidebar">
     <section class="color-panel"><div class="section-title">Цвет <kbd>I · пипетка</kbd></div><div class="color-row"><input id="color" type="color" value="#bd6152" aria-label="Цвет рисования"><input id="colorHex" value="#BD6152" maxlength="7" aria-label="Цвет в формате HEX" spellcheck="false"></div><div id="palette" class="palette" aria-label="Палитра"></div><label class="brush-smoothing" for="brushSmoothing">Сглаживание <output id="brushSmoothingOut" for="brushSmoothing">45%</output><input id="brushSmoothing" type="range" min="0" max="100" value="45" aria-describedby="smoothingHint"></label><p id="smoothingHint" class="smoothing-hint">Выравнивает траекторию кисти и ластика. 0% — без сглаживания.</p><label class="small-label brush-edge-option"><input id="brushAntialias" type="checkbox">Сглаживать края</label></section>
-    <section class="selection-panel"><div class="section-title">Выделение <kbd>W · по цвету</kbd></div><p id="selectionHint">Щёлкните по нужному цвету на рисунке. Допуск включает близкие оттенки.</p><div class="button-stack"><button id="copySelection">Копировать на слой <kbd>Ctrl J</kbd></button><button id="moveSelection">Перенести на слой <kbd>Ctrl ⇧ J</kbd></button></div><div class="selection-actions"><button id="invertSelection">Инверсия</button><button id="deselect">Снять</button></div><button id="clearSelection" class="selection-outline-toggle" title="Очистить выбранные пиксели текущего слоя (Delete / Backspace)" disabled>Очистить <kbd>Del / ⌫</kbd></button><button id="toggleSelectionOutline" class="selection-outline-toggle" aria-pressed="true" disabled>Скрыть контур</button><label class="small-label"><input type="checkbox" id="addSelection">Добавлять к выделению <kbd>Shift</kbd></label><button id="extractOutline" class="outline-button">Отделить контур от белого</button></section>
+    <section class="selection-panel"><div class="section-title">Выделение <kbd>W · по цвету</kbd></div><p id="selectionHint">Одна область: щёлкните внутри контура. Shift добавляет другие области; треугольник у инструмента переключает на весь цвет.</p><div class="button-stack"><button id="copySelection">Копировать на слой <kbd>Ctrl J</kbd></button><button id="moveSelection">Перенести на слой <kbd>Ctrl ⇧ J</kbd></button></div><div class="selection-actions"><button id="invertSelection">Инверсия</button><button id="deselect">Снять</button></div><button id="clearSelection" class="selection-outline-toggle" title="Очистить выбранные пиксели текущего слоя (Delete / Backspace)" disabled>Очистить <kbd>Del / ⌫</kbd></button><button id="toggleSelectionOutline" class="selection-outline-toggle" aria-pressed="true" disabled>Скрыть контур</button><label class="small-label"><input type="checkbox" id="addSelection">Добавлять к выделению <kbd>Shift</kbd></label><button id="extractOutline" class="outline-button">Отделить контур от белого</button></section>
     <section class="layer-panel"><div class="section-title">Слои <button id="addLayer" aria-label="Добавить слой" title="Новый прозрачный слой">+</button></div><div id="layers" aria-label="Список слоёв"></div><div class="layer-settings"><label>Непрозрачность <output id="layerOpacityOut">100%</output><input id="layerOpacity" type="range" min="0" max="100" value="100"></label><label>Наложение<select id="blendMode"><option value="source-over">Обычное</option><option value="multiply">Умножение</option><option value="screen">Экран</option></select></label></div><div class="layer-actions"><button id="layerUp" title="Выше">↑</button><button id="layerDown" title="Ниже">↓</button><button id="duplicateLayer" title="Дублировать слой">Дубликат</button><button id="deleteLayer" title="Удалить слой">Удалить</button></div></section>
     <div class="sidebar-note">Сохраняйте проект для продолжения работы со слоями. PNG сохраняет готовое изображение.</div>
   </aside>
 </main>
 <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden>
 <input id="projectInput" type="file" accept=".contour,application/json" hidden>
+<div id="colorSelectionMenu" class="tool-menu" role="menu" aria-label="Режим выделения по цвету" hidden><button role="menuitemradio" aria-checked="true" data-selection-mode="region"><span class="mode-icon">✧</span><span>Одна область<small>Связная область до контура</small></span><span class="mode-check">✓</span></button><button role="menuitemradio" aria-checked="false" data-selection-mode="global"><span class="mode-icon">✦</span><span>Весь цвет<small>Все подходящие пиксели на рисунке</small></span><span class="mode-check">✓</span></button></div>
 <dialog id="newDialog"><form method="dialog"><h2>Новый холст</h2><div class="size-fields"><label>Ширина, px<input id="newWidth" type="number" min="1" max="8192" value="960" required></label><label>Высота, px<input id="newHeight" type="number" min="1" max="8192" value="720" required></label></div><label><input id="newWhite" type="checkbox" checked>Белый фоновый слой</label><p class="dialog-error" id="newError"></p><div class="dialog-actions"><button value="cancel">Отмена</button><button id="createDoc" class="accent" type="button">Создать</button></div></form></dialog>
 <dialog id="outlineDialog"><form method="dialog"><h2>Контур на прозрачном фоне</h2><p>Для чёрных и серых линий на белой или светлой бумаге. Исходный слой сохранится скрытым, под контуром появится слой для цвета.</p><label>Белая точка <input id="whitePoint" type="range" min="160" max="255" value="250"><output id="whitePointOut">250</output></label><p class="muted">Пиксели светлее этого значения станут прозрачными. Серые края сохранят частичную прозрачность.</p><div class="dialog-actions"><button value="cancel">Отмена</button><button id="doExtract" type="button" class="accent">Отделить контур</button></div></form></dialog>
 <dialog id="helpDialog"><form method="dialog"><h2>Горячие клавиши</h2><p>Работают в английской и русской раскладках. В полях ввода клавиши сохраняют обычное поведение.</p><div class="shortcut-grid"><kbd>B / P / E / G</kbd><span>Кисть / карандаш / ластик / заливка</span><kbd>W / M / V</kbd><span>Цвет / прямоугольник / перемещение слоя</span><kbd>I / H</kbd><span>Пипетка / рука</span><kbd>Alt + щелчок</kbd><span>Временная пипетка у кисти, карандаша, ластика и заливки</span><kbd>Пробел + drag</kbd><span>Временно перемещать холст</span><kbd>Ctrl + колесо</kbd><span>Масштаб около курсора</span><kbd>[ / ]</kbd><span>Уменьшить / увеличить кисть</span><kbd>Ctrl Z</kbd><span>Отменить</span><kbd>Ctrl Shift Z / Ctrl Y</kbd><span>Повторить</span><kbd>Ctrl O</kbd><span>Открыть рисунок</span><kbd>Ctrl S</kbd><span>Сохранить проект со слоями</span><kbd>Ctrl Shift S</kbd><span>Экспорт PNG</span><kbd>Ctrl A / Ctrl D</kbd><span>Выделить всё / снять выделение</span><kbd>Ctrl J / Ctrl Shift J</kbd><span>Копировать / перенести выделенное на слой</span><kbd>Shift + выделение</kbd><span>Добавить к текущему выделению</span><kbd>Alt + выделение</kbd><span>Вычесть из выделения</span><kbd>Delete / Backspace</kbd><span>Удалить выбранные пиксели текущего слоя</span><kbd>Escape</kbd><span>Снять выделение</span></div><p class="muted">На Mac вместо Ctrl используйте ⌘. Системные сочетания и некоторые команды браузера могут иметь приоритет.</p><div class="dialog-actions"><button class="accent">Закрыть</button></div></form></dialog>
@@ -200,9 +203,9 @@
   let width=960,height=720,layers=[],activeId='',selection=null,selectionCount=0,tool='brush',zoom=1,revision=0,revisionCounter=0,savedRevision=0,filename='Без названия',started=false;
   let undoStack=[],redoStack=[],space=false,gesture=null,layerCounter=0,lastPoint=null,lastSelectionSeed=null,opacityBefore=null;
   const display=$('display'),ctx=display.getContext('2d',{willReadFrequently:true}),overlay=$('overlay'),ox=overlay.getContext('2d'),viewport=$('viewport'),wrap=$('canvasWrap');
-  const toolCursor=$('toolCursor'),selectionOutline=$('selectionOutline');let cursorPointer=null,altPicker=false,showSelectionOutline=true;
+  const toolCursor=$('toolCursor'),selectionOutline=$('selectionOutline');let cursorPointer=null,altPicker=false,showSelectionOutline=true,colorSelectionMode='region';
   function temporaryPicker(){return altPicker&&['brush','pencil','eraser','fill'].includes(tool);}
-  function refreshTool(){const effective=temporaryPicker()?'picker':tool;document.querySelectorAll('[data-tool]').forEach(b=>{b.classList.toggle('selected',b.dataset.tool===effective);b.classList.toggle('temporary',temporaryPicker()&&b.dataset.tool==='picker');});viewport.style.cursor={brush:'crosshair',pencil:'crosshair',eraser:'crosshair',fill:'crosshair',colorSelect:'crosshair',rect:'crosshair',move:'move',picker:'crosshair',pan:'grab'}[effective];updateToolCursor();}
+  function refreshTool(){const effective=temporaryPicker()?'picker':tool;document.querySelectorAll('[data-tool]').forEach(b=>{b.classList.toggle('selected',b.dataset.tool===effective);b.classList.toggle('temporary',temporaryPicker()&&b.dataset.tool==='picker');});$('colorSelectionMenuButton').classList.toggle('selected',effective==='colorSelect');$('colorSelectionModeLabel').hidden=effective!=='colorSelect';viewport.style.cursor={brush:'crosshair',pencil:'crosshair',eraser:'crosshair',fill:'crosshair',colorSelect:'crosshair',rect:'crosshair',move:'move',picker:'crosshair',pan:'grab'}[effective];updateToolCursor();}
   function pickColor(p){const data=ctx.getImageData(Math.floor(p.x),Math.floor(p.y),1,1).data;if(data[3]){setColor('#'+[...data.slice(0,3)].map(v=>v.toString(16).padStart(2,'0')).join(''));tell('Цвет взят с видимых слоёв.');}else tell('В этой точке прозрачность.');}
   function updateToolCursor(p){
     if(!cursorPointer||cursorPointer.type==='touch'||temporaryPicker()||space||gesture?.kind==='pan'||!['brush','pencil','eraser'].includes(tool)||!$('welcome').hidden||document.querySelector('dialog[open]')){toolCursor.hidden=true;return;}
@@ -257,13 +260,29 @@
     $('selectionInfo').textContent=selectionCount?selectionCount.toLocaleString('ru-RU')+' px выделено':'Без выделения';$('copySelection').disabled=$('moveSelection').disabled=$('clearSelection').disabled=!selectionCount;$('invertSelection').disabled=$('deselect').disabled=$('toggleSelectionOutline').disabled=!selectionCount;renderOverlay();
   }
   function renderOverlay(){ox.clearRect(0,0,width,height);selectionOutline.toggleAttribute('hidden',!selection||!showSelectionOutline);if(gesture?.kind==='rect'){const a=gesture.start,b=gesture.last;ox.strokeStyle='#111';ox.lineWidth=1/zoom;ox.setLineDash([4/zoom,4/zoom]);ox.strokeRect(Math.min(a.x,b.x),Math.min(a.y,b.y),Math.abs(a.x-b.x),Math.abs(a.y-b.y));ox.setLineDash([]);}}
-  function selectTool(value){tool=value;$('brushSizeControl').hidden=tool==='pencil';$('pencilSizeControl').hidden=tool!=='pencil';refreshTool();}
+  function selectTool(value){closeColorSelectionMenu();tool=value;$('brushSizeControl').hidden=tool==='pencil';$('pencilSizeControl').hidden=tool!=='pencil';refreshTool();}
   function point(e){const r=wrap.getBoundingClientRect();return{x:(e.clientX-r.left)/zoom,y:(e.clientY-r.top)/zoom};}
   function inBounds(p){return p.x>=0&&p.y>=0&&p.x<width&&p.y<height;}
   function seedAt(p){return Math.floor(p.y)*width+Math.floor(p.x);}
   function tolerance(){return Math.max(0,Math.min(255,Number($('tolerance').value)||0));}
   function sample(){return $('sampleSource').value==='merged'?ctx.getImageData(0,0,width,height):pixels(active().canvas);}
-  function selectByColor(p,e){const seed=seedAt(p),data=sample().data;const mode=e.altKey?'subtract':e.shiftKey||$('addSelection').checked?'add':'replace';const mask=C.selectColor(data,width,height,seed,tolerance(),$('contiguous').checked);setSelection(C.combineMasks(selection,mask,mode));lastSelectionSeed=mode==='replace'?{seed,data}:null;tell(selectionCount?'Выделено '+selectionCount.toLocaleString('ru-RU')+' пикселей. Ctrl J — копировать на слой.':'В этой точке нет подходящих непрозрачных пикселей.');}
+  function colorSelectionMask(data,seed){return colorSelectionMode==='region'?C.floodRegion(data,width,height,seed,tolerance(),null):C.selectColor(data,width,height,seed,tolerance(),false);}
+  function refreshColorSelection(){if(!lastSelectionSeed)return;const {data,seed}=lastSelectionSeed;setSelection(colorSelectionMask(data,seed));lastSelectionSeed={data,seed};}
+  function setColorSelectionMode(mode,reselect=true){
+    colorSelectionMode=mode==='global'?'global':'region';const global=colorSelectionMode==='global';
+    $('colorSelectionIcon').textContent=global?'✦':'✧';$('colorSelectionToolName').textContent=global?'Весь цвет':'По цвету';$('colorSelectionModeLabel').textContent=global?'Весь цвет':'Одна область';
+    document.querySelector('[data-tool="colorSelect"]').title=(global?'Весь цвет':'Одна область по цвету')+' (W)';
+    $('selectionHint').textContent=global?'Весь цвет: щёлкните по нужному цвету. Выделятся подходящие пиксели во всех областях рисунка. Допуск включает близкие оттенки.':'Одна область: щёлкните внутри контура. Shift добавляет другие области; треугольник у инструмента переключает на весь цвет.';
+    $('colorSelectionMenu').querySelectorAll('[data-selection-mode]').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.selectionMode===colorSelectionMode)));
+    if(reselect)refreshColorSelection();
+  }
+  function closeColorSelectionMenu(returnFocus=false){$('colorSelectionMenu').hidden=true;$('colorSelectionMenuButton').setAttribute('aria-expanded','false');if(returnFocus)$('colorSelectionMenuButton').focus({preventScroll:true});}
+  function openColorSelectionMenu(){
+    selectTool('colorSelect');const menu=$('colorSelectionMenu'),button=$('colorSelectionMenuButton');menu.hidden=false;button.setAttribute('aria-expanded','true');
+    const r=button.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(r.right+8,window.innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.max(8,Math.min(r.top,window.innerHeight-menu.offsetHeight-8))+'px';
+    menu.querySelector('[aria-checked="true"]').focus({preventScroll:true});
+  }
+  function selectByColor(p,e){const seed=seedAt(p),data=sample().data;const mode=e.altKey?'subtract':e.shiftKey||$('addSelection').checked?'add':'replace';const mask=colorSelectionMask(data,seed);setSelection(C.combineMasks(selection,mask,mode));lastSelectionSeed=mode==='replace'?{seed,data}:null;tell(selectionCount?'Выделено '+selectionCount.toLocaleString('ru-RU')+' пикселей. Ctrl J — копировать на слой.':'В этой точке нет подходящих непрозрачных пикселей.');}
   function fill(p){if(!editable())return;const region=C.floodRegion(sample().data,width,height,seedAt(p),tolerance(),selection);if(!C.maskCount(region)){tell('Точка находится за пределами выделения.');return;}const before=snapshot(),l=active(),paint=canvas(),pc=context(paint),image=pc.createImageData(width,height),rgb=parseColor();for(let i=0;i<region.length;i++){if(region[i]){const p=i*4;image.data[p]=rgb[0];image.data[p+1]=rgb[1];image.data[p+2]=rgb[2];image.data[p+3]=255;}}pc.putImageData(image,0,0);const lc=context(l.canvas);lc.globalAlpha=Number($('brushOpacity').value)/100;lc.drawImage(paint,0,0);lc.globalAlpha=1;markLayerChanged(l);changed(before);tell('Область залита на слое «'+l.name+'».');}
   function parseColor(){const hex=$('color').value;return[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];}
   function setColor(value){$('color').value=value;$('colorHex').value=value.toUpperCase();document.querySelectorAll('#palette button').forEach(b=>b.classList.toggle('active',b.dataset.color===value.toLowerCase()));updateToolCursor();}
@@ -309,7 +328,7 @@
     if(gesture||opacityBefore){scheduleDraft();return;}
     if(draftJob){draftQueued=true;return draftJob;}
     clearTimeout(draftTimer);const generation=draftGeneration,w=width,h=height,name=filename,id=activeId,source=layers.map(l=>({...l}));
-    const settings={tool,color:$('color').value,brushSize:$('brushSize').value,pencilSize:$('pencilSize').value,opacity:$('brushOpacity').value,smoothing:$('brushSmoothing').value,antialias:$('brushAntialias').checked};
+    const settings={tool,colorSelectionMode,color:$('color').value,brushSize:$('brushSize').value,pencilSize:$('pencilSize').value,opacity:$('brushOpacity').value,smoothing:$('brushSmoothing').value,antialias:$('brushAntialias').checked};
     draftStatus('Черновик: сохраняю…');
     draftJob=(async()=>{
       try{
@@ -336,7 +355,7 @@
         const c=canvas(p.width,p.height);context(c).drawImage(image,0,0);next.push({id:l.id,name:l.name.slice(0,120),visible:!!l.visible,locked:!!l.locked,opacity:l.opacity,blend:l.blend,canvas:c});
       }
       initialize(p.width,p.height,typeof p.name==='string'?p.name.slice(0,200):'Без названия',false);layers=next;layerCounter=Math.max(next.length,...next.map(l=>Number(l.id.replace('layer-',''))||0));activeId=ids.has(p.activeId)?p.activeId:next.at(-1).id;revision=revisionCounter=1;savedRevision=0;started=true;$('welcome').hidden=true;
-      const settings=p.settings||{};for(const [key,id,max] of [['brushSize','brushSize',500],['pencilSize','pencilSize',500],['opacity','brushOpacity',100],['smoothing','brushSmoothing',100]]){if(Number.isFinite(Number(settings[key])))$(id).value=Math.max(key==='smoothing'?0:1,Math.min(max,Number(settings[key])));}
+      const settings=p.settings||{};setColorSelectionMode(settings.colorSelectionMode,false);for(const [key,id,max] of [['brushSize','brushSize',500],['pencilSize','pencilSize',500],['opacity','brushOpacity',100],['smoothing','brushSmoothing',100]]){if(Number.isFinite(Number(settings[key])))$(id).value=Math.max(key==='smoothing'?0:1,Math.min(max,Number(settings[key])));}
       $('brushSmoothingOut').value=$('brushSmoothing').value+'%';$('brushOpacityOut').value=$('brushOpacity').value+'%';$('brushAntialias').checked=!!settings.antialias;if(/^#[0-9a-f]{6}$/i.test(settings.color))setColor(settings.color);if(['brush','pencil','eraser','fill','colorSelect','rect','move','picker','pan'].includes(settings.tool))selectTool(settings.tool);
       $('draftDialog').close();pendingDraft=null;draftGeneration++;draftSavedGeneration=draftGeneration;render();renderLayers();updateDirty();draftStatus('Черновик восстановлен');tell('Черновик восстановлен со всеми слоями.');
     }catch(e){$('draftError').textContent='Не удалось восстановить черновик. '+e.message;}
@@ -367,7 +386,11 @@
   $('toggleSelectionOutline').onclick=()=>{showSelectionOutline=!showSelectionOutline;$('toggleSelectionOutline').textContent=showSelectionOutline?'Скрыть контур':'Показать контур';$('toggleSelectionOutline').setAttribute('aria-pressed',String(showSelectionOutline));renderOverlay();};
   $('invertSelection').onclick=()=>{if(!selection)return;const mask=new Uint8Array(selection.length);for(let i=0;i<mask.length;i++)mask[i]=1-selection[i];setSelection(mask);};
   $('extractOutline').onclick=()=>$('outlineDialog').showModal();$('doExtract').onclick=extract;$('whitePoint').oninput=()=>{$('whitePointOut').value=$('whitePoint').value;};
-  $('tolerance').onchange=$('contiguous').onchange=()=>{if(!lastSelectionSeed)return;const {data,seed}=lastSelectionSeed;setSelection(C.selectColor(data,width,height,seed,tolerance(),$('contiguous').checked));lastSelectionSeed={data,seed};};
+  $('tolerance').onchange=refreshColorSelection;
+  $('colorSelectionMenuButton').onclick=()=>{$('colorSelectionMenu').hidden?openColorSelectionMenu():closeColorSelectionMenu(true);};
+  $('colorSelectionMenu').querySelectorAll('[data-selection-mode]').forEach(b=>b.onclick=()=>{setColorSelectionMode(b.dataset.selectionMode);selectTool('colorSelect');viewport.focus({preventScroll:true});tell((colorSelectionMode==='global'?'Весь цвет':'Одна область')+': щёлкните по рисунку. Shift — добавить, Alt — вычесть.');});
+  document.addEventListener('pointerdown',e=>{if(!e.target.closest('#colorSelectionMenu,#colorSelectionMenuButton'))closeColorSelectionMenu();},true);
+  window.addEventListener('resize',()=>closeColorSelectionMenu());
   $('addLayer').onclick=()=>{if(!canAdd())return;const s=snapshot(),l=layer('Слой '+(layerCounter+1));layers.splice(layers.indexOf(active())+1,0,l);activeId=l.id;changed(s);};
   $('duplicateLayer').onclick=()=>{if(!canAdd())return;const s=snapshot(),src=active(),l=layer(src.name+' — копия');Object.assign(l,{visible:src.visible,locked:src.locked,opacity:src.opacity,blend:src.blend});context(l.canvas).drawImage(src.canvas,0,0);layers.splice(layers.indexOf(src)+1,0,l);activeId=l.id;changed(s);};
   $('deleteLayer').onclick=()=>{if(layers.length<=1)return;if(active().locked){tell('Сначала снимите защиту слоя.');return;}const s=snapshot(),i=layers.indexOf(active());layers.splice(i,1);activeId=layers[Math.min(i,layers.length-1)].id;changed(s);};
@@ -390,6 +413,12 @@
   document.addEventListener('keydown',e=>{if(e.code==='Tab')viewport.classList.add('keyboard-focus');},true);
   document.addEventListener('keydown',e=>{
     if(document.querySelector('dialog[open]'))return;
+    if(!$('colorSelectionMenu').hidden){
+      if(e.code==='Escape'){closeColorSelectionMenu(true);e.preventDefault();}
+      else if(['ArrowDown','ArrowUp','Home','End'].includes(e.code)){const options=[...$('colorSelectionMenu').querySelectorAll('[data-selection-mode]')],i=options.indexOf(document.activeElement),next=e.code==='Home'?0:e.code==='End'?options.length-1:(i+(e.code==='ArrowDown'?1:-1)+options.length)%options.length;options[next].focus();e.preventDefault();}
+      else if(e.code==='Tab')closeColorSelectionMenu();
+      return;
+    }
     if(e.target.closest('input,textarea,select,[contenteditable=true]'))return;
     if((e.code==='AltLeft'||e.code==='AltRight')&&!e.ctrlKey&&!e.metaKey){if(gesture)finishGesture();altPicker=true;refreshTool();if(temporaryPicker())e.preventDefault();return;}
     const mod=e.ctrlKey||e.metaKey;let handled=true;if(gesture&&e.code!=='Space'&&e.code!=='Escape')finishGesture();
@@ -401,7 +430,7 @@
   document.addEventListener('keyup',e=>{if(e.code==='AltLeft'||e.code==='AltRight'){altPicker=e.altKey;refreshTool();}if(e.code==='Space'){space=false;updateToolCursor();}});
   window.addEventListener('beforeunload',e=>{if(revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   viewport.addEventListener('dragover',e=>{e.preventDefault();});viewport.addEventListener('drop',e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f?.name.toLowerCase().endsWith('.contour'))openProjectFile(f);else openImageFile(f);});
-  initialize(960,720,'Без названия');selectTool('brush');findDraft();
+  initialize(960,720,'Без названия');setColorSelectionMode('region',false);selectTool('brush');findDraft();
 })();
 
 </script>

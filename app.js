@@ -7,9 +7,9 @@
   let width=960,height=720,layers=[],activeId='',selection=null,selectionCount=0,tool='brush',zoom=1,revision=0,revisionCounter=0,savedRevision=0,filename='Без названия',started=false;
   let undoStack=[],redoStack=[],space=false,gesture=null,layerCounter=0,lastPoint=null,lastSelectionSeed=null,opacityBefore=null;
   const display=$('display'),ctx=display.getContext('2d',{willReadFrequently:true}),overlay=$('overlay'),ox=overlay.getContext('2d'),viewport=$('viewport'),wrap=$('canvasWrap');
-  const toolCursor=$('toolCursor'),selectionOutline=$('selectionOutline');let cursorPointer=null,altPicker=false,showSelectionOutline=true;
+  const toolCursor=$('toolCursor'),selectionOutline=$('selectionOutline');let cursorPointer=null,altPicker=false,showSelectionOutline=true,colorSelectionMode='region';
   function temporaryPicker(){return altPicker&&['brush','pencil','eraser','fill'].includes(tool);}
-  function refreshTool(){const effective=temporaryPicker()?'picker':tool;document.querySelectorAll('[data-tool]').forEach(b=>{b.classList.toggle('selected',b.dataset.tool===effective);b.classList.toggle('temporary',temporaryPicker()&&b.dataset.tool==='picker');});viewport.style.cursor={brush:'crosshair',pencil:'crosshair',eraser:'crosshair',fill:'crosshair',colorSelect:'crosshair',rect:'crosshair',move:'move',picker:'crosshair',pan:'grab'}[effective];updateToolCursor();}
+  function refreshTool(){const effective=temporaryPicker()?'picker':tool;document.querySelectorAll('[data-tool]').forEach(b=>{b.classList.toggle('selected',b.dataset.tool===effective);b.classList.toggle('temporary',temporaryPicker()&&b.dataset.tool==='picker');});$('colorSelectionMenuButton').classList.toggle('selected',effective==='colorSelect');$('colorSelectionModeLabel').hidden=effective!=='colorSelect';viewport.style.cursor={brush:'crosshair',pencil:'crosshair',eraser:'crosshair',fill:'crosshair',colorSelect:'crosshair',rect:'crosshair',move:'move',picker:'crosshair',pan:'grab'}[effective];updateToolCursor();}
   function pickColor(p){const data=ctx.getImageData(Math.floor(p.x),Math.floor(p.y),1,1).data;if(data[3]){setColor('#'+[...data.slice(0,3)].map(v=>v.toString(16).padStart(2,'0')).join(''));tell('Цвет взят с видимых слоёв.');}else tell('В этой точке прозрачность.');}
   function updateToolCursor(p){
     if(!cursorPointer||cursorPointer.type==='touch'||temporaryPicker()||space||gesture?.kind==='pan'||!['brush','pencil','eraser'].includes(tool)||!$('welcome').hidden||document.querySelector('dialog[open]')){toolCursor.hidden=true;return;}
@@ -64,13 +64,29 @@
     $('selectionInfo').textContent=selectionCount?selectionCount.toLocaleString('ru-RU')+' px выделено':'Без выделения';$('copySelection').disabled=$('moveSelection').disabled=$('clearSelection').disabled=!selectionCount;$('invertSelection').disabled=$('deselect').disabled=$('toggleSelectionOutline').disabled=!selectionCount;renderOverlay();
   }
   function renderOverlay(){ox.clearRect(0,0,width,height);selectionOutline.toggleAttribute('hidden',!selection||!showSelectionOutline);if(gesture?.kind==='rect'){const a=gesture.start,b=gesture.last;ox.strokeStyle='#111';ox.lineWidth=1/zoom;ox.setLineDash([4/zoom,4/zoom]);ox.strokeRect(Math.min(a.x,b.x),Math.min(a.y,b.y),Math.abs(a.x-b.x),Math.abs(a.y-b.y));ox.setLineDash([]);}}
-  function selectTool(value){tool=value;$('brushSizeControl').hidden=tool==='pencil';$('pencilSizeControl').hidden=tool!=='pencil';refreshTool();}
+  function selectTool(value){closeColorSelectionMenu();tool=value;$('brushSizeControl').hidden=tool==='pencil';$('pencilSizeControl').hidden=tool!=='pencil';refreshTool();}
   function point(e){const r=wrap.getBoundingClientRect();return{x:(e.clientX-r.left)/zoom,y:(e.clientY-r.top)/zoom};}
   function inBounds(p){return p.x>=0&&p.y>=0&&p.x<width&&p.y<height;}
   function seedAt(p){return Math.floor(p.y)*width+Math.floor(p.x);}
   function tolerance(){return Math.max(0,Math.min(255,Number($('tolerance').value)||0));}
   function sample(){return $('sampleSource').value==='merged'?ctx.getImageData(0,0,width,height):pixels(active().canvas);}
-  function selectByColor(p,e){const seed=seedAt(p),data=sample().data;const mode=e.altKey?'subtract':e.shiftKey||$('addSelection').checked?'add':'replace';const mask=C.selectColor(data,width,height,seed,tolerance(),$('contiguous').checked);setSelection(C.combineMasks(selection,mask,mode));lastSelectionSeed=mode==='replace'?{seed,data}:null;tell(selectionCount?'Выделено '+selectionCount.toLocaleString('ru-RU')+' пикселей. Ctrl J — копировать на слой.':'В этой точке нет подходящих непрозрачных пикселей.');}
+  function colorSelectionMask(data,seed){return colorSelectionMode==='region'?C.floodRegion(data,width,height,seed,tolerance(),null):C.selectColor(data,width,height,seed,tolerance(),false);}
+  function refreshColorSelection(){if(!lastSelectionSeed)return;const {data,seed}=lastSelectionSeed;setSelection(colorSelectionMask(data,seed));lastSelectionSeed={data,seed};}
+  function setColorSelectionMode(mode,reselect=true){
+    colorSelectionMode=mode==='global'?'global':'region';const global=colorSelectionMode==='global';
+    $('colorSelectionIcon').textContent=global?'✦':'✧';$('colorSelectionToolName').textContent=global?'Весь цвет':'По цвету';$('colorSelectionModeLabel').textContent=global?'Весь цвет':'Одна область';
+    document.querySelector('[data-tool="colorSelect"]').title=(global?'Весь цвет':'Одна область по цвету')+' (W)';
+    $('selectionHint').textContent=global?'Весь цвет: щёлкните по нужному цвету. Выделятся подходящие пиксели во всех областях рисунка. Допуск включает близкие оттенки.':'Одна область: щёлкните внутри контура. Shift добавляет другие области; треугольник у инструмента переключает на весь цвет.';
+    $('colorSelectionMenu').querySelectorAll('[data-selection-mode]').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.selectionMode===colorSelectionMode)));
+    if(reselect)refreshColorSelection();
+  }
+  function closeColorSelectionMenu(returnFocus=false){$('colorSelectionMenu').hidden=true;$('colorSelectionMenuButton').setAttribute('aria-expanded','false');if(returnFocus)$('colorSelectionMenuButton').focus({preventScroll:true});}
+  function openColorSelectionMenu(){
+    selectTool('colorSelect');const menu=$('colorSelectionMenu'),button=$('colorSelectionMenuButton');menu.hidden=false;button.setAttribute('aria-expanded','true');
+    const r=button.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(r.right+8,window.innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.max(8,Math.min(r.top,window.innerHeight-menu.offsetHeight-8))+'px';
+    menu.querySelector('[aria-checked="true"]').focus({preventScroll:true});
+  }
+  function selectByColor(p,e){const seed=seedAt(p),data=sample().data;const mode=e.altKey?'subtract':e.shiftKey||$('addSelection').checked?'add':'replace';const mask=colorSelectionMask(data,seed);setSelection(C.combineMasks(selection,mask,mode));lastSelectionSeed=mode==='replace'?{seed,data}:null;tell(selectionCount?'Выделено '+selectionCount.toLocaleString('ru-RU')+' пикселей. Ctrl J — копировать на слой.':'В этой точке нет подходящих непрозрачных пикселей.');}
   function fill(p){if(!editable())return;const region=C.floodRegion(sample().data,width,height,seedAt(p),tolerance(),selection);if(!C.maskCount(region)){tell('Точка находится за пределами выделения.');return;}const before=snapshot(),l=active(),paint=canvas(),pc=context(paint),image=pc.createImageData(width,height),rgb=parseColor();for(let i=0;i<region.length;i++){if(region[i]){const p=i*4;image.data[p]=rgb[0];image.data[p+1]=rgb[1];image.data[p+2]=rgb[2];image.data[p+3]=255;}}pc.putImageData(image,0,0);const lc=context(l.canvas);lc.globalAlpha=Number($('brushOpacity').value)/100;lc.drawImage(paint,0,0);lc.globalAlpha=1;markLayerChanged(l);changed(before);tell('Область залита на слое «'+l.name+'».');}
   function parseColor(){const hex=$('color').value;return[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];}
   function setColor(value){$('color').value=value;$('colorHex').value=value.toUpperCase();document.querySelectorAll('#palette button').forEach(b=>b.classList.toggle('active',b.dataset.color===value.toLowerCase()));updateToolCursor();}
@@ -116,7 +132,7 @@
     if(gesture||opacityBefore){scheduleDraft();return;}
     if(draftJob){draftQueued=true;return draftJob;}
     clearTimeout(draftTimer);const generation=draftGeneration,w=width,h=height,name=filename,id=activeId,source=layers.map(l=>({...l}));
-    const settings={tool,color:$('color').value,brushSize:$('brushSize').value,pencilSize:$('pencilSize').value,opacity:$('brushOpacity').value,smoothing:$('brushSmoothing').value,antialias:$('brushAntialias').checked};
+    const settings={tool,colorSelectionMode,color:$('color').value,brushSize:$('brushSize').value,pencilSize:$('pencilSize').value,opacity:$('brushOpacity').value,smoothing:$('brushSmoothing').value,antialias:$('brushAntialias').checked};
     draftStatus('Черновик: сохраняю…');
     draftJob=(async()=>{
       try{
@@ -143,7 +159,7 @@
         const c=canvas(p.width,p.height);context(c).drawImage(image,0,0);next.push({id:l.id,name:l.name.slice(0,120),visible:!!l.visible,locked:!!l.locked,opacity:l.opacity,blend:l.blend,canvas:c});
       }
       initialize(p.width,p.height,typeof p.name==='string'?p.name.slice(0,200):'Без названия',false);layers=next;layerCounter=Math.max(next.length,...next.map(l=>Number(l.id.replace('layer-',''))||0));activeId=ids.has(p.activeId)?p.activeId:next.at(-1).id;revision=revisionCounter=1;savedRevision=0;started=true;$('welcome').hidden=true;
-      const settings=p.settings||{};for(const [key,id,max] of [['brushSize','brushSize',500],['pencilSize','pencilSize',500],['opacity','brushOpacity',100],['smoothing','brushSmoothing',100]]){if(Number.isFinite(Number(settings[key])))$(id).value=Math.max(key==='smoothing'?0:1,Math.min(max,Number(settings[key])));}
+      const settings=p.settings||{};setColorSelectionMode(settings.colorSelectionMode,false);for(const [key,id,max] of [['brushSize','brushSize',500],['pencilSize','pencilSize',500],['opacity','brushOpacity',100],['smoothing','brushSmoothing',100]]){if(Number.isFinite(Number(settings[key])))$(id).value=Math.max(key==='smoothing'?0:1,Math.min(max,Number(settings[key])));}
       $('brushSmoothingOut').value=$('brushSmoothing').value+'%';$('brushOpacityOut').value=$('brushOpacity').value+'%';$('brushAntialias').checked=!!settings.antialias;if(/^#[0-9a-f]{6}$/i.test(settings.color))setColor(settings.color);if(['brush','pencil','eraser','fill','colorSelect','rect','move','picker','pan'].includes(settings.tool))selectTool(settings.tool);
       $('draftDialog').close();pendingDraft=null;draftGeneration++;draftSavedGeneration=draftGeneration;render();renderLayers();updateDirty();draftStatus('Черновик восстановлен');tell('Черновик восстановлен со всеми слоями.');
     }catch(e){$('draftError').textContent='Не удалось восстановить черновик. '+e.message;}
@@ -174,7 +190,11 @@
   $('toggleSelectionOutline').onclick=()=>{showSelectionOutline=!showSelectionOutline;$('toggleSelectionOutline').textContent=showSelectionOutline?'Скрыть контур':'Показать контур';$('toggleSelectionOutline').setAttribute('aria-pressed',String(showSelectionOutline));renderOverlay();};
   $('invertSelection').onclick=()=>{if(!selection)return;const mask=new Uint8Array(selection.length);for(let i=0;i<mask.length;i++)mask[i]=1-selection[i];setSelection(mask);};
   $('extractOutline').onclick=()=>$('outlineDialog').showModal();$('doExtract').onclick=extract;$('whitePoint').oninput=()=>{$('whitePointOut').value=$('whitePoint').value;};
-  $('tolerance').onchange=$('contiguous').onchange=()=>{if(!lastSelectionSeed)return;const {data,seed}=lastSelectionSeed;setSelection(C.selectColor(data,width,height,seed,tolerance(),$('contiguous').checked));lastSelectionSeed={data,seed};};
+  $('tolerance').onchange=refreshColorSelection;
+  $('colorSelectionMenuButton').onclick=()=>{$('colorSelectionMenu').hidden?openColorSelectionMenu():closeColorSelectionMenu(true);};
+  $('colorSelectionMenu').querySelectorAll('[data-selection-mode]').forEach(b=>b.onclick=()=>{setColorSelectionMode(b.dataset.selectionMode);selectTool('colorSelect');viewport.focus({preventScroll:true});tell((colorSelectionMode==='global'?'Весь цвет':'Одна область')+': щёлкните по рисунку. Shift — добавить, Alt — вычесть.');});
+  document.addEventListener('pointerdown',e=>{if(!e.target.closest('#colorSelectionMenu,#colorSelectionMenuButton'))closeColorSelectionMenu();},true);
+  window.addEventListener('resize',()=>closeColorSelectionMenu());
   $('addLayer').onclick=()=>{if(!canAdd())return;const s=snapshot(),l=layer('Слой '+(layerCounter+1));layers.splice(layers.indexOf(active())+1,0,l);activeId=l.id;changed(s);};
   $('duplicateLayer').onclick=()=>{if(!canAdd())return;const s=snapshot(),src=active(),l=layer(src.name+' — копия');Object.assign(l,{visible:src.visible,locked:src.locked,opacity:src.opacity,blend:src.blend});context(l.canvas).drawImage(src.canvas,0,0);layers.splice(layers.indexOf(src)+1,0,l);activeId=l.id;changed(s);};
   $('deleteLayer').onclick=()=>{if(layers.length<=1)return;if(active().locked){tell('Сначала снимите защиту слоя.');return;}const s=snapshot(),i=layers.indexOf(active());layers.splice(i,1);activeId=layers[Math.min(i,layers.length-1)].id;changed(s);};
@@ -197,6 +217,12 @@
   document.addEventListener('keydown',e=>{if(e.code==='Tab')viewport.classList.add('keyboard-focus');},true);
   document.addEventListener('keydown',e=>{
     if(document.querySelector('dialog[open]'))return;
+    if(!$('colorSelectionMenu').hidden){
+      if(e.code==='Escape'){closeColorSelectionMenu(true);e.preventDefault();}
+      else if(['ArrowDown','ArrowUp','Home','End'].includes(e.code)){const options=[...$('colorSelectionMenu').querySelectorAll('[data-selection-mode]')],i=options.indexOf(document.activeElement),next=e.code==='Home'?0:e.code==='End'?options.length-1:(i+(e.code==='ArrowDown'?1:-1)+options.length)%options.length;options[next].focus();e.preventDefault();}
+      else if(e.code==='Tab')closeColorSelectionMenu();
+      return;
+    }
     if(e.target.closest('input,textarea,select,[contenteditable=true]'))return;
     if((e.code==='AltLeft'||e.code==='AltRight')&&!e.ctrlKey&&!e.metaKey){if(gesture)finishGesture();altPicker=true;refreshTool();if(temporaryPicker())e.preventDefault();return;}
     const mod=e.ctrlKey||e.metaKey;let handled=true;if(gesture&&e.code!=='Space'&&e.code!=='Escape')finishGesture();
@@ -208,5 +234,5 @@
   document.addEventListener('keyup',e=>{if(e.code==='AltLeft'||e.code==='AltRight'){altPicker=e.altKey;refreshTool();}if(e.code==='Space'){space=false;updateToolCursor();}});
   window.addEventListener('beforeunload',e=>{if(revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   viewport.addEventListener('dragover',e=>{e.preventDefault();});viewport.addEventListener('drop',e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f?.name.toLowerCase().endsWith('.contour'))openProjectFile(f);else openImageFile(f);});
-  initialize(960,720,'Без названия');selectTool('brush');findDraft();
+  initialize(960,720,'Без названия');setColorSelectionMode('region',false);selectTool('brush');findDraft();
 })();
