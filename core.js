@@ -86,6 +86,34 @@
     let minY=height,maxY=0;for(const p of points){minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}const y0=Math.max(0,Math.floor(minY)),y1=Math.min(height,Math.ceil(maxY));
     for(let y=y0;y<y1;y++){const crosses=[],scan=y+.5;for(let i=0,j=points.length-1;i<points.length;j=i++){const a=points[j],b=points[i];if((a.y>scan)!==(b.y>scan))crosses.push(a.x+(scan-a.y)*(b.x-a.x)/(b.y-a.y));}crosses.sort((a,b)=>a-b);for(let i=0;i+1<crosses.length;i+=2){const x0=Math.max(0,Math.ceil(crosses[i]-.5)),x1=Math.min(width,Math.ceil(crosses[i+1]-.5));if(x1>x0)mask.fill(1,y*width+x0,y*width+x1);}}return mask;
   }
-  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine,selectionOutline,polygonMask};root.ContourCore=api;
+  // Fit only a nearly closed, single-turn stroke. Uniform arc-length samples
+  // keep the result independent of pointer event density and pauses.
+  function recognizeEllipse(raw,scale=1){
+    if(raw.length<12||!Number.isFinite(raw[0].x)||!Number.isFinite(raw[0].y))return null;
+    const points=[raw[0]];let length=0;
+    for(const p of raw.slice(1)){if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return null;const d=Math.hypot(p.x-points.at(-1).x,p.y-points.at(-1).y);if(d>.15/scale){length+=d;points.push(p);}}
+    if(points.length<12)return null;
+    let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+    for(const p of points){x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y);}
+    const w=x1-x0,h=y1-y0,diagonal=Math.hypot(w,h),normal=Math.max(w,h)/2;
+    if(Math.min(w,h)*scale<12||length<diagonal*2||Math.hypot(points[0].x-points.at(-1).x,points[0].y-points.at(-1).y)>diagonal*.22)return null;
+    const samples=[],step=length/127;let traversed=0,index=1;
+    for(let k=0;k<128;k++){const target=k*step;while(index<points.length-1&&traversed+Math.hypot(points[index].x-points[index-1].x,points[index].y-points[index-1].y)<target){traversed+=Math.hypot(points[index].x-points[index-1].x,points[index].y-points[index-1].y);index++;}const a=points[index-1],b=points[index],d=Math.hypot(b.x-a.x,b.y-a.y),t=Math.min(1,(target-traversed)/d);samples.push({x:(a.x+(b.x-a.x)*t-(x0+x1)/2)/normal,y:(a.y+(b.y-a.y)*t-(y0+y1)/2)/normal});}
+    const matrix=Array.from({length:5},()=>Array(6).fill(0));
+    for(const p of samples){const row=[p.x*p.x,p.x*p.y,p.y*p.y,p.x,p.y];for(let i=0;i<5;i++){for(let j=0;j<5;j++)matrix[i][j]+=row[i]*row[j];matrix[i][5]+=row[i];}}
+    for(let k=0;k<5;k++){let pivot=k;for(let i=k+1;i<5;i++)if(Math.abs(matrix[i][k])>Math.abs(matrix[pivot][k]))pivot=i;if(Math.abs(matrix[pivot][k])<1e-8)return null;[matrix[k],matrix[pivot]]=[matrix[pivot],matrix[k]];const factor=matrix[k][k];for(let j=k;j<=5;j++)matrix[k][j]/=factor;for(let i=0;i<5;i++)if(i!==k){const f=matrix[i][k];for(let j=k;j<=5;j++)matrix[i][j]-=f*matrix[k][j];}}
+    const [A,B,C,D,E]=matrix.map(r=>r[5]),det=A*C-B*B/4;
+    if(A<=0||C<=0||det<=1e-8)return null;
+    const cx=-(C*D-B*E/2)/(2*det),cy=-(A*E-B*D/2)/(2*det),factor=1+A*cx*cx+B*cx*cy+C*cy*cy;
+    const gap=Math.hypot(A-C,B),small=(A+C-gap)/2,large=(A+C+gap)/2;
+    if(factor<=0||small<=0)return null;
+    const rx=Math.sqrt(factor/small),ry=Math.sqrt(factor/large),angle=.5*Math.atan2(-B,C-A),cos=Math.cos(angle),sin=Math.sin(angle);
+    if(rx/ry>8||ry*normal*scale<6||rx*normal>diagonal||Math.hypot(cx,cy)>.5)return null;
+    let residual=0,winding=0,totalTurn=0,previous=null;
+    for(const p of samples){const dx=p.x-cx,dy=p.y-cy,u=(dx*cos+dy*sin)/rx,v=(-dx*sin+dy*cos)/ry,r=Math.hypot(u,v),a=Math.atan2(v,u);residual+=(r-1)**2;if(Math.abs(r-1)>.26)return null;if(previous!==null){let turn=a-previous;while(turn>Math.PI)turn-=Math.PI*2;while(turn<-Math.PI)turn+=Math.PI*2;winding+=turn;totalTurn+=Math.abs(turn);}previous=a;}
+    if(Math.sqrt(residual/samples.length)>.09||Math.abs(winding)<5.5||Math.abs(winding)>7||totalTurn>Math.abs(winding)*1.18)return null;
+    return{cx:(x0+x1)/2+cx*normal,cy:(y0+y1)/2+cy*normal,rx:rx*normal,ry:ry*normal,angle};
+  }
+  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine,selectionOutline,polygonMask,recognizeEllipse};root.ContourCore=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
