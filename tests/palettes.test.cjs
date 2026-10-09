@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict'),{harness}=require('./harness.cjs');
+const legacy=[{name:'Основная',colors:['#112233',null]},{name:'Палитра 1 · Портрет',colors:['#001122','#335577']},{name:'Палитра 2 · Океан',colors:['#446688']},{name:'Моя осень',colors:['#bb3322',null,'#ccbb66']}];
+let h=harness(undefined,legacy),d=h.d;const names=()=>[...d.getElementById('paletteSelect').options].map(o=>o.textContent);
+for(const n of ['Портрет','Океан','Моя осень','Ghibli · Лес Тоторо','Андерсон · Гранд Будапешт','Неоновый город','Старое аниме'])assert.ok(names().includes(n));assert.ok(!names().some(n=>n.startsWith('Палитра ')));
+d.getElementById('editPalette').click();d.getElementById('paletteName').value='Мои нейтрали';d.getElementById('savePalette').click();const saved=JSON.parse(h.w.localStorage.getItem('contour-palettes'));
+assert.equal(saved[0].id,'builtin-basic');assert.equal(saved[0].name,'Мои нейтрали');for(let i=0;i<legacy.length;i++)assert.deepEqual(saved[i].colors,legacy[i].colors);
+assert.equal(new Set(saved.filter(p=>p.id).map(p=>p.id)).size,saved.filter(p=>p.id).length);h.w.close();
+h=harness(undefined,saved);d=h.d;assert.equal(names().length,saved.length);assert.equal(names()[0],'Мои нейтрали');assert.equal(names().filter(n=>n==='Основная').length,0);
+d.getElementById('editPalette').click();d.getElementById('savePalette').click();assert.deepEqual(JSON.parse(h.w.localStorage.getItem('contour-palettes')),saved);h.w.close();
+h=harness(undefined,[{name:'broken',colors:['not-a-color']}]);d=h.d;assert.ok(names().includes('Ghibli · Море Поньо'));assert.equal(names()[0],'Основная');h.w.close();
+console.log('Palette migration verified: custom colors and empty slots preserved, legacy names cleaned, new presets appended once, renamed built-ins retain identity, persistence/reload and invalid saved data fallback.');
