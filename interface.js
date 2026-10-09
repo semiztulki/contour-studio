@@ -67,7 +67,7 @@
     <p class="muted">Нажатие работает, если стилус и браузер передают его силу. Мышь и палец используют обычный размер. Изменение непрозрачности включается отдельно.</p>
     <details><summary>Управление и справка</summary><p>Два пальца — масштаб и перемещение. Один палец — выбранный инструмент. Удерживайте кнопку пипетки или ластика для временного включения. На компьютере доступны горячие клавиши.</p><button id="settingsHelp" type="button">Горячие клавиши</button></details>
     <details><summary>Черновик</summary><p id="settingsDraftState"></p><p class="muted">Черновик хранится в этом браузере. Для переноса и продолжения работы со слоями сохраните проект .contour.</p><button id="settingsRestoreDraft" type="button">Проверить черновик</button></details>
-    <details><summary>О программе</summary><p>Контур · 0.7.1</p><p class="muted">Изображения обрабатываются на вашем устройстве.</p></details>
+    <details><summary>О программе</summary><p>Контур · 0.7.2</p><p class="muted">Изображения обрабатываются на вашем устройстве.</p></details>
     <div class="dialog-actions"><button id="resetSettings" type="button">Сбросить настройки</button><button class="accent">Закрыть</button></div></form>`;
   document.body.append(dialog);
   const settingFields={Layout:'layout',Language:'language',Theme:'theme',Density:'density',Finger:'finger',Pressure:'pressure',PressureMin:'pressureMin',Offset:'offset',Cursor:'cursor',Crosshair:'crosshair',Loupe:'loupe',QuickShape:'quickShape',FillPreview:'fillPreview',Grid:'grid'};
