@@ -114,6 +114,32 @@
     if(Math.sqrt(residual/samples.length)>.09||Math.abs(winding)<5.5||Math.abs(winding)>7||totalTurn>Math.abs(winding)*1.18)return null;
     return{cx:(x0+x1)/2+cx*normal,cy:(y0+y1)/2+cy*normal,rx:rx*normal,ry:ry*normal,angle};
   }
-  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine,selectionOutline,polygonMask,recognizeEllipse};root.ContourCore=api;
+  function mixPoint(a,b,t){return{x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};}
+  function splitBezier(points,t){
+    const [a,b,c,d]=points,ab=mixPoint(a,b,t),bc=mixPoint(b,c,t),cd=mixPoint(c,d,t),abc=mixPoint(ab,bc,t),bcd=mixPoint(bc,cd,t),p=mixPoint(abc,bcd,t);
+    return{left:[a,ab,abc,p],right:[p,bcd,cd,d]};
+  }
+  function bezierPoint(points,t){return splitBezier(points,t).left[3];}
+  function nearestBezier(points,p,tolerance){
+    // Adaptive subdivision bounds work at any zoom without sampling every pixel.
+    let best=null,distance=tolerance*tolerance;
+    function visit(q,t0,t1,depth){
+      const xs=q.map(p=>p.x),ys=q.map(p=>p.y),dx=Math.max(0,Math.min(...xs)-p.x,p.x-Math.max(...xs)),dy=Math.max(0,Math.min(...ys)-p.y,p.y-Math.max(...ys));
+      if(dx*dx+dy*dy>distance)return;
+      const [a,b,c,d]=q,vx=d.x-a.x,vy=d.y-a.y,len=vx*vx+vy*vy;
+      const flat=len?Math.max(Math.abs(vy*(b.x-a.x)-vx*(b.y-a.y)),Math.abs(vy*(c.x-a.x)-vx*(c.y-a.y)))/Math.sqrt(len):Math.max(Math.hypot(b.x-a.x,b.y-a.y),Math.hypot(c.x-a.x,c.y-a.y));
+      // Also subdivide collinear controls outside the chord (loops/backtracking).
+      const along=r=>len?((r.x-a.x)*vx+(r.y-a.y)*vy)/len:0;
+      if(depth>=18||flat<=tolerance/8&&along(b)>=0&&along(b)<=1&&along(c)>=0&&along(c)<=1){
+        const score=t=>{const r=bezierPoint(points,t);return(r.x-p.x)**2+(r.y-p.y)**2;};let lo=t0,hi=t1;
+        for(let i=0;i<26;i++){const l=lo+(hi-lo)/3,r=hi-(hi-lo)/3;if(score(l)<score(r))hi=r;else lo=l;}
+        const t=[t0,(lo+hi)/2,t1].reduce((a,b)=>score(a)<score(b)?a:b),point=bezierPoint(points,t),dist=score(t);
+        if(dist<=distance){distance=dist;best={t,point,distance:Math.sqrt(dist)};}return;
+      }
+      const halves=splitBezier(q,.5),mid=(t0+t1)/2;visit(halves.left,t0,mid,depth+1);visit(halves.right,mid,t1,depth+1);
+    }
+    visit(points,0,1,0);return best;
+  }
+  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine,selectionOutline,polygonMask,recognizeEllipse,bezierPoint,splitBezier,nearestBezier};root.ContourCore=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
