@@ -23,6 +23,24 @@ return {w,d,back,timers,event,key,stroke,image};
 }
 async function settle(){for(let n=0;n<8;n++)await new Promise(resolve=>setImmediate(resolve));}
 async function runTimer(h){const callbacks=[...h.timers.values()];h.timers.clear();callbacks.forEach(cb=>cb());await settle();}
+// Clearing uses the active layer, preserves an irregular mask, and remains undoable.
+const clear=harness({read:async()=>null,write:async()=>{}}),cd=clear.d,cv=cd.getElementById('viewport');
+cd.getElementById('welcomeBlank').click();cd.getElementById('brushSize').value=60;cd.getElementById('color').value='#3f7f8a';clear.stroke([[200,200],[240,200]]);const bottom=clear.image();
+cd.getElementById('addLayer').click();cd.getElementById('color').value='#bd6152';clear.stroke([[200,200],[240,200]]);const both=clear.image();
+cd.querySelector('[data-tool="rect"]').click();clear.stroke([[190,190],[220,220]]);clear.stroke([[200,200],[210,210]],{altKey:true});const boundary=cd.querySelector('#selectionOutline path').getAttribute('d'),count=cd.getElementById('selectionInfo').textContent;
+for(const code of ['Delete','Backspace']){
+ const e=new clear.w.KeyboardEvent('keydown',{code,bubbles:true,cancelable:true});cv.dispatchEvent(e);assert.equal(e.defaultPrevented,true);
+ const expected=Buffer.from(both);for(let y=190;y<220;y++)for(let x=190;x<220;x++)if(!(x>=200&&x<210&&y>=200&&y<210)){const i=(y*960+x)*4;bottom.copy(expected,i,i,i+4);}
+ assert.deepEqual(clear.image(),expected,'only selected pixels of the top layer clear');assert.equal(cd.querySelector('#selectionOutline path').getAttribute('d'),boundary);assert.equal(cd.getElementById('selectionInfo').textContent,count);
+ cd.getElementById('undo').click();assert.deepEqual(clear.image(),both);cd.getElementById('redo').click();assert.deepEqual(clear.image(),expected);
+ clear.key('keydown',code);cd.getElementById('undo').click();assert.deepEqual(clear.image(),both,'repeating on empty pixels adds no history entry');
+}
+cd.querySelector('.layer-row.active button:last-child').click();clear.key('keydown','Delete');assert.deepEqual(clear.image(),both);assert.match(cd.getElementById('status').textContent,/защищён/);cd.querySelector('.layer-row.active button:last-child').click();
+cd.querySelector('.layer-row.active button').click();const hidden=clear.image();clear.key('keydown','Backspace');assert.deepEqual(clear.image(),hidden);assert.match(cd.getElementById('status').textContent,/скрыт/);cd.querySelector('.layer-row.active button').click();
+const input=cd.getElementById('colorHex');input.dispatchEvent(new clear.w.KeyboardEvent('keydown',{code:'Backspace',bubbles:true,cancelable:true}));assert.deepEqual(clear.image(),both);
+cd.getElementById('help').click();clear.key('keydown','Delete');assert.deepEqual(clear.image(),both);cd.getElementById('helpDialog').close();
+cd.getElementById('clearSelection').click();assert.notDeepEqual(clear.image(),both);cd.getElementById('undo').click();assert.deepEqual(clear.image(),both);cd.getElementById('deselect').click();clear.key('keydown','Backspace');assert.deepEqual(clear.image(),both);assert.equal(cd.getElementById('clearSelection').disabled,true);
+clear.key('keydown','Tab');assert.equal(cv.classList.contains('keyboard-focus'),true);clear.event('pointerdown',10,10);assert.equal(cv.classList.contains('keyboard-focus'),false);clear.w.close();
 // Exhaustive 3x3 masks: filled traced loops must exactly match the selected cells.
 const C=require('../core.js');for(let bits=0;bits<512;bits++){const mask=Uint8Array.from({length:9},(_,i)=>(bits>>i)&1),copy=mask.slice(),c=native.createCanvas(3,3),ctx=c.getContext('2d'),outline=C.selectionOutline(mask,3,3);if(outline)ctx.fill(new native.Path2D(outline));const pixels=ctx.getImageData(0,0,3,3).data;for(let i=0;i<9;i++)assert.equal(pixels[i*4+3],mask[i]*255,'outline '+bits+' pixel '+i);assert.deepEqual(mask,copy);}assert.ok(C.selectionOutline(new Uint8Array(10000).fill(1),100,100).length<40);
 (async()=>{
