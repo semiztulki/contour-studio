@@ -81,6 +81,11 @@
     }
     return out.join('');
   }
-  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine,selectionOutline};root.ContourCore=api;
+  function polygonMask(points,width,height){
+    const mask=new Uint8Array(width*height);if(points.length<3)return mask;
+    let minY=height,maxY=0;for(const p of points){minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}const y0=Math.max(0,Math.floor(minY)),y1=Math.min(height,Math.ceil(maxY));
+    for(let y=y0;y<y1;y++){const crosses=[],scan=y+.5;for(let i=0,j=points.length-1;i<points.length;j=i++){const a=points[j],b=points[i];if((a.y>scan)!==(b.y>scan))crosses.push(a.x+(scan-a.y)*(b.x-a.x)/(b.y-a.y));}crosses.sort((a,b)=>a-b);for(let i=0;i+1<crosses.length;i+=2){const x0=Math.max(0,Math.ceil(crosses[i]-.5)),x1=Math.min(width,Math.ceil(crosses[i+1]-.5));if(x1>x0)mask.fill(1,y*width+x0,y*width+x1);}}return mask;
+  }
+  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine,selectionOutline,polygonMask};root.ContourCore=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

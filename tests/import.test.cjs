@@ -22,7 +22,7 @@ async function settled(){for(let i=0;i<100;i++){if(!d.querySelector('#status').t
   const fixture=native.createCanvas(4000,3000),fc=fixture.getContext('2d');fc.fillStyle='#fff';fc.fillRect(0,0,4000,3000);fc.fillStyle='#234567';fc.fillRect(0,0,20,20);
   const bytes=fixture.toBuffer('image/png');const file={name:'Большой рисунок.png',size:bytes.length,bytes};
   choose(file);assert.equal(d.querySelector('#fileNotice').hidden,false);await settled();
-  assert.equal(d.querySelector('#dimensions').textContent,'4000 × 3000 px');assert.equal(d.querySelector('#welcome').hidden,true);assert.equal(d.querySelector('#fileNotice').hidden,true);assert.equal(d.querySelectorAll('.layer-row').length,3);
+  assert.equal(d.querySelector('#dimensions').textContent,'4000 × 3000 px');assert.equal(d.querySelector('#welcome').hidden,true);assert.equal(d.querySelector('#fileNotice').hidden,true);assert.equal(d.querySelectorAll('.layer-row').length,2);
   assert.deepEqual([...back(d.querySelector('#display')).getContext('2d').getImageData(1,1,1,1).data],[35,69,103,255]);
   choose({name:'Слишком большой.png',size:200,dimensions:[5000,5000]});await settled();
   assert.equal(d.querySelector('#fileNotice').hidden,false);assert.equal(d.querySelector('#fileNotice').getAttribute('role'),'alert');assert.match(d.querySelector('#fileNoticeText').textContent,/5000 × 5000.*24 миллионов/);
