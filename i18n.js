@@ -529,7 +529,7 @@
   "Кокэ · светлая интерпретация футааи": "Koke · light futaai interpretation",
   "Кокэ · футааи, сине-фиолетовый": "Koke · futaai, blue-purple"
 };
-  Object.assign(en,{"Контур · 0.7.0":"Contour · 0.7.0","Редактор для раскрашивания · 0.7.0":"Coloring editor · 0.7.0","Перетащите слой, чтобы изменить порядок":"Drag to reorder layers","Порядок слоя":"Layer order","Переименовать слой":"Rename layer","Копировать":"Copy","Вырезать":"Cut","Вставить":"Paste","Пальцами: масштаб и перемещение":"Two fingers: zoom and pan"});
+  Object.assign(en,{"Контур · 0.7.1":"Contour · 0.7.1","Редактор для раскрашивания · 0.7.1":"Coloring editor · 0.7.1","Перетащите слой, чтобы изменить порядок":"Drag to reorder layers","Порядок слоя":"Layer order","Переименовать слой":"Rename layer","Копировать":"Copy","Вырезать":"Cut","Вставить":"Paste","Пальцами: масштаб и перемещение":"Two fingers: zoom and pan"});
   Object.assign(en,{"Повреждённый TIFF.":"Invalid TIFF file.","Неизвестный TIFF.":"Unknown TIFF format.","Поддерживается обычный TIFF, без BigTIFF.":"Standard TIFF is supported; BigTIFF is not.","Повреждённые теги TIFF.":"Invalid TIFF tags.","Этот TIFF использует неподдерживаемое сжатие или цветовой режим. Откройте PNG/JPEG либо TIFF RGB без сжатия.":"This TIFF uses unsupported compression or color mode. Open PNG/JPEG or uncompressed RGB TIFF.","Повреждённые полосы TIFF.":"Invalid TIFF strips.","Неполные пиксели TIFF.":"Incomplete TIFF pixel data."});
   const reverse=Object.fromEntries(Object.entries(en).map(([a,b])=>[b,a]));
   const canonical=source=>{const trimmed=source.trim();return reverse[trimmed]?source.replace(trimmed,reverse[trimmed]):source;};
