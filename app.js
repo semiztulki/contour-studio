@@ -291,6 +291,37 @@
   $('doSave').onclick=async()=>{const button=$('doSave');button.disabled=true;try{const f=$('saveFormat').value;if(f==='contour')saveProject();else{const c=canvas(),cc=context(c);composite(cc);if(f==='jpeg'){cc.save();cc.globalCompositeOperation='destination-over';cc.fillStyle='#fff';cc.fillRect(0,0,width,height);cc.restore();}let blob;if(f==='tiff')blob=new Blob([window.ContourFormats.encodeTiff(cc.getImageData(0,0,width,height))],{type:'image/tiff'});else blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(Error('Не удалось создать изображение.')),'image/'+f,Number($('jpegQuality').value)/100));download(blob,baseName()+'.'+(f==='jpeg'?'jpg':f==='tiff'?'tiff':'png'));}$('saveDialog').close();}catch(e){$('saveError').textContent=e.message;}finally{button.disabled=false;}};
   const basicColors=['#1e2429','#59616b','#9aa5b1','#e7e8e5','#ffffff','#ead09b','#c99358','#bd6152','#7a3c48','#b5869d','#7c68a4','#4e628a','#3f7f8a','#648b70','#9dad72','#ceb96d'];
   let palettes=[],paletteIndex=0,paletteEditing=null;
+  // Seasonal motifs and hue families: kariginu.jp/kikata/kasane-irome.htm,
+  // kariginu.jp/kikata/5-2.htm, kyoto-kyuteibunka.or.jp/column/741/.
+  // These are drawing collections combining several documented kasane motifs.
+  // HEX values are our modern screen interpretations, not historical dye standards.
+  const japaneseSeasons=[
+    {id:'builtin-japan-spring',name:'Япония · Весна',description:'Касанэ-но-иромэ: слива, сакура, ива, глициния и ямабуки. Экранная адаптация традиционных сочетаний.',swatches:[
+      ['#fff8f1','Сакура / ива · белый шёлк'],['#f8e0e6','Слива · очень бледный кобай'],['#f4b3c2','Слива · бледный кобай'],['#e16b8c','Слива · кобай, розовый цвет красной сливы'],
+      ['#c73e5b','Сакура / слива · курэнай, насыщенный красный'],['#8e354a','Слива · суо, краситель из саппанового дерева'],['#d8e4b2','Ива · бледный ао, зелёный'],['#a8bf75','Ива · светлый ао'],
+      ['#76965b','Ива · ао, зелень листвы'],['#90b44b','Глициния / ямабуки · моэги, молодая зелень'],['#e9d79b','Ямабуки · бледный жёлтый'],['#f8b500','Ямабуки · цвет золотистой керрии'],
+      ['#dca65b','Ямабуки · светлый кутиба, охристый'],['#a9633c','Ямабуки · кутиба, цвет старой листвы'],['#d6c6e3','Глициния · бледный мурасаки'],['#8e6b9d','Глициния · лиловый усуиро']
+    ]},
+    {id:'builtin-japan-summer',name:'Япония · Лето',description:'Касанэ-но-иромэ: унохана, ирисы, цветы татибаны и надэсико. Экранная адаптация традиционных сочетаний.',swatches:[
+      ['#fffaf4','Унохана / татибана · белый шёлк'],['#e4ead9','Унохана · очень бледный ао'],['#adc6a0','Унохана / ирисы · бледный ао'],['#7b9e78','Унохана / татибана · ао, зелёный'],
+      ['#3b6651','Унохана · тёмная зелень'],['#b8d374','Ирисы · бледный моэги'],['#769c45','Ирисы · моэги, зелень листьев'],['#e1d8e9','Ирисы · очень бледный мурасаки'],
+      ['#b79cce','Ирисы · бледный мурасаки'],['#7d699e','Какицубата · футааи, сочетание индиго и красного'],['#6a4c86','Ирисы · мурасаки, фиолетовый'],['#f5c7ce','Надэсико · очень бледный розовый'],
+      ['#d88d9b','Надэсико · бледный суо'],['#9e5266','Надэсико · суо, пурпурно-красный'],['#d7b583','Татибана · бледный кутиба'],['#9f7252','Татибана · кутиба, тёплый коричневый']
+    ]},
+    {id:'builtin-japan-autumn',name:'Япония · Осень',description:'Касанэ-но-иромэ: оминаэси, хаги, астры сион, красная листва и опавшие каштаны. Экранная адаптация традиционных сочетаний.',swatches:[
+      ['#faf3df','Хризантема · белый шёлк'],['#e9d66b','Оминаэси · жёлтый цвет патриньи'],['#c7b044','Оминаэси · насыщенный жёлтый'],['#b5be63','Оминаэси · сочетание зелёного и жёлтого'],
+      ['#87915e','Хаги / сион · ао, зелёный'],['#526b4c','Хаги · тёмный ао'],['#c5afcf','Сион · усуиро, бледный лиловый'],['#9370a0','Хаги · мурасаки, фиолетовый'],
+      ['#665579','Хаги · футааи, сине-фиолетовый'],['#d76842','Момидзи · красная осенняя листва'],['#b9403d','Момидзи · тёмный красный'],['#7e3940','Опавшие каштаны · суо'],
+      ['#e0b36b','Кутиба · светлая охристая листва'],['#ba824b','Кутиба · золотистая листва'],['#946243','Кутиба · коричневая листва'],['#dec7a2','Опавшие каштаны · коиро, бежевый']
+    ]},
+    {id:'builtin-japan-winter',name:'Япония · Зима',description:'Касанэ-но-иромэ: лёд, снег над сливой, камелия, мох и сухая трава. Экранная адаптация традиционных сочетаний.',swatches:[
+      ['#ffffff','Кори · белый блестящего шёлка'],['#f6f1e3','Кори · мягкий белый'],['#ede1c1','Коригасанэ · ториноко, оттенок бумаги'],['#e8bbc8','Юки-но-сита · бледный кобай под снегом'],
+      ['#cf8294','Юки-но-сита · кобай, розовая слива'],['#ab4a62','Юки-но-сита · насыщенный кобай'],['#c73b42','Цубаки · красная камелия'],['#8d354b','Цубаки · суо, пурпурно-красный'],
+      ['#612f44','Цубаки · тёмный суо'],['#d8bf70','Карэиро · жёлтый сухой травы'],['#ae9053','Кокэ · насыщенный коиро'],['#7f6448','Кокэ · тёмный коиро'],
+      ['#c0c7a0','Карэиро · бледный ао, зелёный'],['#657b58','Карэиро · ао, зелёный'],['#a493b1','Кокэ · светлая интерпретация футааи'],['#665577','Кокэ · футааи, сине-фиолетовый']
+    ]}
+  ];
+
   const builtinPalettes=[{id:'builtin-basic',name:'Основная',colors:basicColors},
     {"id":"builtin-portrait","name":"Портрет","colors":["#fff2dd","#f4d7b7","#e6b991","#ce9575","#b67859","#965942","#744432","#4c2d27","#eec3bd","#ce8885","#a35c64","#6f3e4e","#ead4bf","#b8a598","#777074","#3c343a"]},
     {"id":"builtin-ocean","name":"Океан","colors":["#f0fbfa","#d1eee9","#99d7d7","#60b8c6","#328fac","#236b91","#204e76","#183550","#0d2438","#147c80","#32958a","#69aea0","#a5c9b1","#d8d4ae","#b5a27c","#777b85"]},
@@ -309,7 +340,8 @@
     {"id":"builtin-mist","name":"Лесной туман","colors":["#f1f0df","#d9decd","#bccbbb","#9cafab","#7d9693","#5f7a79","#445e62","#2c444c","#1b3039","#d8c9aa","#b8a37f","#977d5e","#765e4b","#c0b6bd","#988c9d","#6b6378"]},
     {"id":"builtin-sepia","name":"Старая фотография","colors":["#fcf2dc","#eee0bf","#dccb9f","#c7b285","#b1976d","#967b55","#7c6146","#654b38","#4e382c","#352721","#e5cba9","#cba585","#b2866e","#8b6255","#6e4944","#4b3334"]},
     {"id":"builtin-arctic","name":"Полярная ночь","colors":["#f0f6fa","#d7e5eb","#b9cedb","#93adca","#7086b2","#515e91","#384575","#24315a","#152341","#bfe5dc","#82c9c0","#4ba29e","#397980","#d6c1d6","#aa94bd","#766d98"]},
-    {"id":"builtin-artdeco","name":"Ар-деко · Изумруд и золото","colors":["#f8f1da","#e8d7a5","#d5ba70","#bc9847","#93712f","#645125","#234f49","#173a38","#102d2f","#0e2229","#a8c8b4","#71998b","#477364","#c69b88","#996a60","#663f44"]}
+    {"id":"builtin-artdeco","name":"Ар-деко · Изумруд и золото","colors":["#f8f1da","#e8d7a5","#d5ba70","#bc9847","#93712f","#645125","#234f49","#173a38","#102d2f","#0e2229","#a8c8b4","#71998b","#477364","#c69b88","#996a60","#663f44"]} ,
+    ...japaneseSeasons.map(p=>({id:p.id,name:p.name,colors:p.swatches.map(c=>c[0])}))
   ];
   function initializePalettes(){
     palettes=builtinPalettes.map(p=>({...p,colors:p.colors.slice()}));
@@ -322,7 +354,7 @@
     }catch{}renderPalettes();
   }
   function renderPalettes(){const select=$('paletteSelect');select.replaceChildren();palettes.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=p.name;select.append(o);});select.value=paletteIndex;renderPalette();}
-  function renderPalette(){$('paletteSelect').title=palettes[paletteIndex].name;$('palette').replaceChildren();palettes[paletteIndex].colors.forEach((color,i)=>{const b=document.createElement('button');if(color){b.style.background=color;b.dataset.color=color.toLowerCase();b.title=color;b.setAttribute('aria-label','Выбрать цвет '+color);b.onclick=()=>setColor(color,false);}else{b.className='empty-slot';b.textContent='+';b.title='Добавить цвет в слот '+(i+1);b.setAttribute('aria-label',b.title);b.onclick=()=>{editPalette(false);choosePaletteSlot(i);};}$('palette').append(b);});setColor($('color').value,false);renderRecentColors();}
+  function renderPalette(){const season=japaneseSeasons.find(p=>p.id===palettes[paletteIndex].id);$('paletteSelect').title=palettes[paletteIndex].name+(season?' · '+season.description:'');$('palette').replaceChildren();palettes[paletteIndex].colors.forEach((color,i)=>{const b=document.createElement('button');if(color){b.style.background=color;b.dataset.color=color.toLowerCase();const label=season?.swatches.find(c=>c[0]===color.toLowerCase())?.[1];b.title=(label?label+' · ':'')+color;b.setAttribute('aria-label','Выбрать цвет '+(label?label+' · ':'')+color);b.onclick=()=>setColor(color,false);}else{b.className='empty-slot';b.textContent='+';b.title='Добавить цвет в слот '+(i+1);b.setAttribute('aria-label',b.title);b.onclick=()=>{editPalette(false);choosePaletteSlot(i);};}$('palette').append(b);});setColor($('color').value,false);renderRecentColors();}
   $('paletteSelect').onchange=()=>{paletteIndex=Number($('paletteSelect').value);renderPalette();};
   let recentColorList=[];try{const stored=JSON.parse(localStorage.getItem('contour-recent-colors'));if(Array.isArray(stored))recentColorList=[...new Set(stored.filter(c=>/^#[0-9a-f]{6}$/i.test(c)).map(c=>c.toLowerCase()))].slice(0,10);}catch{}
   function paletteContains(hex){return palettes.some(p=>p.colors.some(c=>c?.toLowerCase()===hex.toLowerCase()));}
