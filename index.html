@@ -6,11 +6,11 @@
 <meta name="description" content="Браузерный редактор для раскрашивания: слои, выделение по цвету, отделение контура и горячие клавиши. Изображения обрабатываются на вашем устройстве.">
 <title>Контур — редактор для раскрашивания</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23242c35'/%3E%3Cpath d='M8 23V9h16v14H8m5-5 4-8 4 8' fill='none' stroke='%23eec278' stroke-width='2'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="./style.css?v=0.2.0">
+<link rel="stylesheet" href="./style.css?v=0.2.1">
 </head>
 <body>
 <header class="topbar">
-<div class="brand"><span class="brand-mark">К</span><span>Контур<small>Редактор для раскрашивания · 0.2.0</small></span></div>
+<div class="brand"><span class="brand-mark">К</span><span>Контур<small>Редактор для раскрашивания · 0.2.1</small></span></div>
 <nav aria-label="Файл"><button id="newDoc" title="Новый файл" aria-label="Новый файл" data-icon="file"></button><button id="openImage" title="Открыть файл (Ctrl O)" aria-label="Открыть файл" data-icon="folder"></button><button id="saveProject" class="accent" title="Сохранить как… (Ctrl S)">Сохранить ▾</button></nav>
 <div class="file-actions"><button id="extractOutline" title="Удалить белый фон и скопировать контур на новый слой">Удалить фон</button><button id="help" class="help-button" aria-label="Горячие клавиши">?</button></div>
 </header>
@@ -58,6 +58,6 @@
 <dialog id="outlineDialog"><form method="dialog"><h2>Удалить белый фон</h2><p>Для чёрных и серых линий на белой или светлой бумаге. Контур появится на одном новом прозрачном слое. Исходный рисунок сохранится скрытым.</p><label>Белая точка <input id="whitePoint" type="range" min="160" max="255" value="250"><output id="whitePointOut">250</output></label><p class="muted">Пиксели светлее этого значения станут прозрачными. Серые края сохранят частичную прозрачность.</p><div class="dialog-actions"><button value="cancel">Отмена</button><button id="doExtract" type="button" class="accent">Удалить фон</button></div></form></dialog>
 <dialog id="helpDialog"><form method="dialog"><h2>Горячие клавиши</h2><p>Работают в английской и русской раскладках. В полях ввода клавиши сохраняют обычное поведение.</p><div class="shortcut-grid"><kbd>B / E / G</kbd><span>Кисть / ластик / заливка</span><kbd>W / M / L</kbd><span>Выделение / прямоугольник / лассо</span><kbd>V / C / I / H</kbd><span>Трансформация / обрезка / пипетка / рука</span><kbd>Alt / R / Пробел</kbd><span>Удерживать: пипетка / ластик / рука</span><kbd>Стрелки / Shift</kbd><span>Перемещение на 1 / 10 px в инструменте V</span><kbd>Enter / Escape</kbd><span>Применить обрезку / отменить жест или обрезку</span><kbd>Ctrl C / X / V</kbd><span>Копировать / вырезать / вставить на новый слой</span><kbd>Ctrl Z / Shift Z</kbd><span>Отменить / повторить</span><kbd>Ctrl O / S</kbd><span>Открыть файл / сохранить как…</span><kbd>Ctrl A / D</kbd><span>Выделить всё / снять выделение</span><kbd>Shift / Alt</kbd><span>Добавлять / вычитать при выделении</span><kbd>Delete / Backspace</kbd><span>Очистить пиксели внутри выделения</span><kbd>Ctrl + колесо</kbd><span>Масштаб около курсора</span><kbd>[ / ]</kbd><span>Изменить размер кисти</span></div><p class="muted">На Mac вместо Ctrl используйте ⌘. Системные сочетания и некоторые команды браузера могут иметь приоритет.</p><div class="dialog-actions"><button class="accent">Закрыть</button></div></form></dialog>
 <dialog id="draftDialog"><h2>Найден автоматический черновик</h2><p id="draftDescription"></p><p class="muted">Черновик сохранён в этом браузере со всеми слоями. История отмены и выделение не восстанавливаются.</p><p id="draftError" class="dialog-error"></p><div class="dialog-actions"><button id="skipDraft">Начать заново</button><button id="restoreDraft" class="accent">Восстановить</button></div></dialog>
-<script src="./core.js?v=0.2.0"></script><script src="./draft.js?v=0.2.0"></script><script src="./formats.js?v=0.2.0"></script><script src="./app.js?v=0.2.0"></script>
+<script src="./core.js?v=0.2.1"></script><script src="./draft.js?v=0.2.1"></script><script src="./formats.js?v=0.2.1"></script><script src="./app.js?v=0.2.1"></script>
 </body>
 </html>
