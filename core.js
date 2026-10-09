@@ -9,22 +9,37 @@
     if(seed<0||seed>=n||!data[p+3]) return mask;
     const target=data.slice(p,p+4);
     if(!contiguous){for(let i=0;i<n;i++) if(similar(data,i*4,target,tolerance)) mask[i]=1;return mask;}
-    const queue=new Int32Array(n),seen=new Uint8Array(n);let head=0,tail=0;
-    queue[tail++]=seed;seen[seed]=1;
-    const visit=i=>{if(!seen[i]){seen[i]=1;if(similar(data,i*4,target,tolerance))queue[tail++]=i;}};
-    while(head<tail){const i=queue[head++];mask[i]=1;const x=i%width;if(x>0)visit(i-1);if(x<width-1)visit(i+1);if(i>=width)visit(i-width);if(i<n-width)visit(i+width);}
-    return mask;
+    return floodSpans(width,height,seed,i=>similar(data,i*4,target,tolerance));
   }
   function floodRegion(data,width,height,seed,tolerance,selection){
-    const n=width*height,mask=new Uint8Array(n),p=seed*4;
-    if(seed<0||seed>=n||(selection&&!selection[seed]))return mask;
-    const target=data.slice(p,p+4),queue=new Int32Array(n),seen=new Uint8Array(n);let head=0,tail=0;
-    const match=i=>Math.max(Math.abs(data[i*4]-target[0]),Math.abs(data[i*4+1]-target[1]),Math.abs(data[i*4+2]-target[2]),Math.abs(data[i*4+3]-target[3]))<=tolerance;
-    queue[tail++]=seed;seen[seed]=1;
-    const visit=i=>{if(!seen[i]){seen[i]=1;if((!selection||selection[i])&&match(i))queue[tail++]=i;}};
-    while(head<tail){const i=queue[head++];mask[i]=1;const x=i%width;if(x>0)visit(i-1);if(x<width-1)visit(i+1);if(i>=width)visit(i-width);if(i<n-width)visit(i+width);}
-    return mask;
+    const target=data.slice(seed*4,seed*4+4);
+    return floodSpans(width,height,seed,i=>(!selection||selection[i])&&Math.max(Math.abs(data[i*4]-target[0]),Math.abs(data[i*4+1]-target[1]),Math.abs(data[i*4+2]-target[2]),Math.abs(data[i*4+3]-target[3]))<=tolerance);
   }
+  function floodSpans(width,height,seed,match){
+    const n=width*height,mask=new Uint8Array(n),stack=[];
+    if(seed<0||seed>=n||!match(seed))return mask;stack.push(seed);
+    while(stack.length){const start=stack.pop();if(mask[start]||!match(start))continue;const row=Math.floor(start/width)*width;let left=start,right=start;
+      while(left>row&&!mask[left-1]&&match(left-1))left--;
+      while(right<row+width-1&&!mask[right+1]&&match(right+1))right++;
+      mask.fill(1,left,right+1);
+      for(const offset of [-width,width]){if(left+offset<0||right+offset>=n)continue;let run=false;for(let i=left+offset;i<=right+offset;i++){const ok=!mask[i]&&match(i);if(ok&&!run)stack.push(i);run=ok;}}
+    }return mask;
+  }
+  function binaryBoxFilter(input,width,height,reach,dilate){
+    let before=Math.floor(reach/2),after=Math.ceil(reach/2);if(dilate)[before,after]=[after,before];const horizontal=new Uint8Array(input.length),output=new Uint8Array(input.length);
+    for(let y=0;y<height;y++){let count=0;const row=y*width;for(let x=0;x<=Math.min(after,width-1);x++)count+=input[row+x];
+      for(let x=0;x<width;x++){const cells=Math.min(width-1,x+after)-Math.max(0,x-before)+1;horizontal[row+x]=dilate?Number(count>0):Number(count===cells);if(x-before>=0)count-=input[row+x-before];if(x+after+1<width)count+=input[row+x+after+1];}}
+    for(let x=0;x<width;x++){let count=0;for(let y=0;y<=Math.min(after,height-1);y++)count+=horizontal[y*width+x];
+      for(let y=0;y<height;y++){const cells=Math.min(height-1,y+after)-Math.max(0,y-before)+1;output[y*width+x]=dilate?Number(count>0):Number(count===cells);if(y-before>=0)count-=horizontal[(y-before)*width+x];if(y+after+1<height)count+=horizontal[(y+after+1)*width+x];}}
+    return output;
+  }
+  function fillRegion(data,width,height,seed,tolerance,selection,gap=0){
+    if(!gap)return floodRegion(data,width,height,seed,tolerance,selection);
+    const target=data.slice(seed*4,seed*4+4),matched=Uint8Array.from({length:width*height},(_,i)=>Number(Math.max(Math.abs(data[i*4]-target[0]),Math.abs(data[i*4+1]-target[1]),Math.abs(data[i*4+2]-target[2]),Math.abs(data[i*4+3]-target[3]))<=tolerance)),radius=Math.max(0,Math.min(20,Math.round(gap)));
+    const closed=binaryBoxFilter(binaryBoxFilter(matched,width,height,radius,false),width,height,radius,true);
+    return floodSpans(width,height,seed,i=>closed[i]&&matched[i]&&(!selection||selection[i]));
+  }
+  function maskBounds(mask,width,height){let x0=width,y0=height,x1=0,y1=0;for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(mask[y*width+x]){x0=Math.min(x0,x);x1=Math.max(x1,x+1);y0=Math.min(y0,y);y1=Math.max(y1,y+1);}return x1>x0?{x0,y0,x1,y1}:null;}
   function extractOutline(data,whitePoint){
     const result=new Uint8ClampedArray(data.length);
     for(let i=0;i<data.length;i+=4){const luminance=.2126*data[i]+.7152*data[i+1]+.0722*data[i+2];result[i+3]=Math.round(data[i+3]*Math.max(0,1-luminance/whitePoint));}
@@ -140,6 +155,7 @@
     }
     visit(points,0,1,0);return best;
   }
-  const api={selectColor,floodRegion,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine,selectionOutline,polygonMask,recognizeEllipse,bezierPoint,splitBezier,nearestBezier};root.ContourCore=api;
+  const workerSource=[similar,selectColor,floodSpans,floodRegion,binaryBoxFilter,fillRegion,maskBounds,extractOutline].map(fn=>fn.toString()).join('\n')+'\nlet source;self.onmessage=e=>{const m=e.data;if(m.kind==="source"){source=m.data;return;}try{const result=m.kind==="fill"?fillRegion(source,m.width,m.height,m.seed,m.tolerance,m.selection,m.gap):m.kind==="select"?(m.contiguous?selectColor(source,m.width,m.height,m.seed,m.tolerance,true):selectColor(source,m.width,m.height,m.seed,m.tolerance,false)):extractOutline(source,m.whitePoint);self.postMessage({id:m.id,result},[result.buffer]);}catch(error){self.postMessage({id:m.id,error:error.message});}};';
+  const api={selectColor,floodRegion,fillRegion,maskBounds,workerSource,extractOutline,combineMasks,maskCount,strokeSmoother,pixelLine,selectionOutline,polygonMask,recognizeEllipse,bezierPoint,splitBezier,nearestBezier};root.ContourCore=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
