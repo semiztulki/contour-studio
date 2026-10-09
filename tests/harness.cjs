@@ -4,7 +4,7 @@ const native=require('@napi-rs/canvas');
 const root=require('node:path').resolve(__dirname,'..');
 function harness(store,savedPalettes,options={}){
 const dom=new JSDOM(fs.readFileSync(root+'/index.html','utf8'),{runScripts:'outside-only',pretendToBeVisual:true,url:'https://example.test/'});
-const w=dom.window,d=w.document,backing=new WeakMap(),curveCommands=[];
+const w=dom.window,d=w.document,backing=new WeakMap(),curveCommands=[];w.localStorage.setItem('contour-settings',JSON.stringify({language:'ru',...options.settings}));
 if(savedPalettes!==undefined)w.localStorage.setItem('contour-palettes',JSON.stringify(savedPalettes));
 function back(el){if(!backing.has(el))backing.set(el,native.createCanvas(el.width,el.height));return backing.get(el);}
 for(const prop of ['width','height']){const original=Object.getOwnPropertyDescriptor(w.HTMLCanvasElement.prototype,prop);Object.defineProperty(w.HTMLCanvasElement.prototype,prop,{get:original.get,set(v){original.set.call(this,v);if(backing.has(this))backing.get(this)[prop]=v;}});}
@@ -15,9 +15,9 @@ const viewport=d.querySelector('#viewport');viewport.setPointerCapture=()=>{};
 viewport.getBoundingClientRect=()=>({left:0,top:0,right:1100,bottom:850});
 Object.defineProperty(viewport,'clientWidth',{value:1100});Object.defineProperty(viewport,'clientHeight',{value:850});
 d.querySelector('#canvasWrap').getBoundingClientRect=()=>({left:0,top:0,width:960,height:720});
-const frames=[];w.requestAnimationFrame=cb=>{frames.push(cb);return frames.length;};w.eval(fs.readFileSync(root+'/core.js','utf8'));w.eval(fs.readFileSync(root+'/formats.js','utf8'));w.eval(fs.readFileSync(root+'/app.js','utf8'));
+const frames=[];w.requestAnimationFrame=cb=>{frames.push(cb);return frames.length;};w.eval(fs.readFileSync(root+'/core.js','utf8'));w.eval(fs.readFileSync(root+'/formats.js','utf8'));w.eval(fs.readFileSync(root+'/i18n.js','utf8'));w.eval(fs.readFileSync(root+'/app.js','utf8'));w.eval(fs.readFileSync(root+'/interface.js','utf8'));
 
-function event(type,x,y,extra={}){const e=new w.MouseEvent(type,{clientX:x,clientY:y,button:0,bubbles:true,cancelable:true,...extra});Object.defineProperty(e,'pointerId',{value:1});viewport.dispatchEvent(e);}
+function event(type,x,y,extra={}){const e=new w.MouseEvent(type,{clientX:x,clientY:y,button:0,bubbles:true,cancelable:true,...extra});for(const [key,value]of Object.entries({pointerId:1,...Object.fromEntries(Object.entries(extra).filter(([k])=>['pointerId','pointerType','pressure','getCoalescedEvents'].includes(k)))}))Object.defineProperty(e,key,{value});viewport.dispatchEvent(e);}
 function key(type,code,extra={}){viewport.dispatchEvent(new w.KeyboardEvent(type,{code,bubbles:true,cancelable:true,...extra}));}
 function stroke(points,extra={}){event('pointerdown',...points[0],extra);for(const p of points.slice(1))event('pointermove',...p,extra);event('pointerup',...points.at(-1),extra);while(frames.length)frames.shift()();}
 function image(){return Buffer.from(back(d.getElementById('display')).getContext('2d').getImageData(0,0,d.getElementById('display').width,d.getElementById('display').height).data);}

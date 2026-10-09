@@ -13,7 +13,7 @@ w.HTMLCanvasElement.prototype.toDataURL=function(){if(this.width===34&&this.heig
 const viewport=d.querySelector('#viewport');viewport.setPointerCapture=()=>{};
 Object.defineProperty(viewport,'clientWidth',{value:1100});Object.defineProperty(viewport,'clientHeight',{value:850});
 d.querySelector('#canvasWrap').getBoundingClientRect=()=>({left:0,top:0,width:960,height:720});
-const frames=[];w.requestAnimationFrame=cb=>{frames.push(cb);return frames.length;};w.eval(fs.readFileSync(root+'/core.js','utf8'));w.HTMLDialogElement.prototype.close=()=>{};w.eval(source.replace("  initialize(960,720,'Без названия');","  window.testHistory=()=>({undo:undoStack,redo:redoStack,bytes:undoStack.map(stateBytes)});initialize(960,720,'Без названия');"));
+const frames=[];w.requestAnimationFrame=cb=>{frames.push(cb);return frames.length;};w.eval(fs.readFileSync(root+'/core.js','utf8'));w.HTMLDialogElement.prototype.close=()=>{};w.eval(source.replace("  initialize(960,720,untitled());","  window.testHistory=()=>({undo:undoStack,redo:redoStack,bytes:undoStack.map(stateBytes)});initialize(960,720,untitled());"));
 
 function event(type,x,y){const e=new w.MouseEvent(type,{clientX:x,clientY:y,button:0,bubbles:true,cancelable:true});Object.defineProperty(e,'pointerId',{value:1});viewport.dispatchEvent(e);}
 function flush(){while(frames.length)frames.shift()();}
