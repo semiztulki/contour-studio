@@ -112,3 +112,11 @@ body,.topbar,.options-bar,.sidebar,.document-bar,.canvas-area,#viewport,#welcome
 :root[data-layout=desktop] .tools .tool-menu-arrow{width:18px;height:18px;min-height:18px}
 .topbar .history button{min-width:38px;min-height:38px;display:grid;place-items:center}
 #mobilePanel .layer-panel>.section-title{display:flex;font-size:0;justify-content:flex-end}
+
+/* The editor owns zoom; scrollable panels retain one-finger scrolling. */
+html,body{touch-action:pan-y;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+button,summary,label,.layer-row,canvas,#viewport{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,[contenteditable]:not([contenteditable="false"]){-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+.sidebar,.tools,.interface-menu,#mobilePanel,dialog{touch-action:pan-y;overscroll-behavior:contain}
+#viewport,#referenceViewport,#referenceCanvas,.touch-commands button{touch-action:none}
+@media (any-pointer:coarse){input:not([type=checkbox]):not([type=range]):not([type=color]),select,textarea{font-size:16px!important}}

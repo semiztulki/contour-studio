@@ -2,17 +2,18 @@
 (()=>{
   'use strict';
   const $=id=>document.getElementById(id), E=window.ContourEditor, I=window.ContourI18n;
-  const defaults={layout:'auto',language: I?.language||'ru',theme:document.documentElement.dataset.theme||'dark',density:'standard',finger:'draw',cursor:true,crosshair:false,loupe:true,offset:0,pressure:'size',pressureMin:0,quickShape:true,fillPreview:true,grid:true};
+  const defaults={layout:'auto',language: I?.language||'ru',theme:document.documentElement.dataset.theme||'dark',density:'standard',finger:'auto',cursor:true,crosshair:false,loupe:true,offset:0,pressure:'size',pressureMin:0,quickShape:true,fillPreview:true,grid:true};
   let saved={};try{saved=JSON.parse(localStorage.getItem('contour-settings'))||{};}catch{}
   // Replace the former 10% default once; preserve other values and new explicit choices.
   if(saved.pressureResponse!==2&&saved.pressureMin===10)saved.pressureMin=0;
+  if(saved.touchPolicy!==2&&saved.finger==='draw')saved.finger='auto';
   const prefs={...defaults};for(const k of Object.keys(defaults))if(typeof saved[k]===typeof defaults[k])prefs[k]=saved[k];
-  for(const [key,values] of Object.entries({layout:['auto','mobile','desktop'],language:['ru','en'],theme:['dark','light','system'],density:['standard','large'],finger:['draw','pan'],pressure:['off','size','opacity','both']}))if(!values.includes(prefs[key]))prefs[key]=defaults[key];
+  for(const [key,values] of Object.entries({layout:['auto','mobile','desktop'],language:['ru','en'],theme:['dark','light','system'],density:['standard','large'],finger:['auto','draw','pan'],pressure:['off','size','opacity','both']}))if(!values.includes(prefs[key]))prefs[key]=defaults[key];
   prefs.offset=Math.max(0,Math.min(80,prefs.offset));prefs.pressureMin=Math.max(0,Math.min(100,prefs.pressureMin));
   const root=document.documentElement, tools=document.querySelector('.tools'),sidebar=document.querySelector('.sidebar'),options=document.querySelector('.options-bar'),top=document.querySelector('.topbar'),history=document.querySelector('.history');
   const icon=(name)=>({settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z M9 3h6l1 3 3 1 2 4-2 3v3l-4 2-3-1-3 1-4-2v-3l-2-3 2-4 3-1Z',menu:'M4 6h16M4 12h16M4 18h16',layers:'M12 3 2 8l10 5 10-5-10-5ZM2 12l10 5 10-5M2 16l10 5 10-5',color:'M12 3C7 8 5 11 5 15a7 7 0 0 0 14 0c0-4-2-7-7-12Z',options:'M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6',view:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z'}[name]||'M5 12h14M12 5v14');
   function button(id,label,kind){const b=document.createElement('button');b.id=id;b.type='button';b.setAttribute('aria-label',label);b.title=label;b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+icon(kind)+'"/></svg>';return b;}
-  function save(){try{localStorage.setItem('contour-settings',JSON.stringify({...prefs,pressureResponse:2}));}catch{}}
+  function save(){try{localStorage.setItem('contour-settings',JSON.stringify({...prefs,pressureResponse:2,touchPolicy:2}));}catch{}}
   function apply(){
     const mobile=prefs.layout==='mobile'||prefs.layout==='auto'&&innerWidth<800;
     const before=root.dataset.layout,view=before?E.captureView():null;root.dataset.layout=mobile?'mobile':'desktop';root.dataset.density=prefs.density;root.dataset.grid=String(prefs.grid);root.dataset.crosshair=String(prefs.crosshair);
@@ -59,7 +60,7 @@
     <label>Язык<select id="settingLanguage"><option value="ru" lang="ru" data-user-text>Русский</option><option value="en" lang="en" data-user-text>English</option></select></label>
     <label>Тема<select id="settingTheme"><option value="dark">Тёмная</option><option value="light">Светлая</option><option value="system">Системная</option></select></label>
     <label>Элементы<select id="settingDensity"><option value="standard">Стандартные</option><option value="large">Увеличенные</option></select></label>
-    <label>Пальцем<select id="settingFinger"><option value="draw">Рисовать</option><option value="pan">Перемещать</option></select></label>
+    <label>Пальцем<select id="settingFinger"><option value="auto">Авто</option><option value="draw">Рисовать</option><option value="pan">Только перемещать</option></select></label>
     <label>Нажатие стилуса<select id="settingPressure"><option value="size">Размер</option><option value="opacity">Непрозрачность</option><option value="both">Размер и непрозрачность</option><option value="off">Выключено</option></select></label>
     <label>Минимальный размер, %<input id="settingPressureMin" type="number" min="0" max="100"></label>
     <label>Смещение касания, px<input id="settingOffset" type="number" min="0" max="80"></label>
@@ -67,9 +68,10 @@
     <label><input id="settingLoupe" type="checkbox">Лупа при касании</label><label><input id="settingQuickShape" type="checkbox">Автофигура</label>
     <label><input id="settingFillPreview" type="checkbox">Предпросмотр заливки</label><label><input id="settingGrid" type="checkbox">Сетка рабочей области</label></div>
     <p class="muted">Нажатие работает, если стилус и браузер передают его силу. Мышь и палец используют обычный размер. Изменение непрозрачности включается отдельно.</p>
+    <p class="muted">Авто: после первого использования стилуса пальцы только перемещают лист. Касания во время штриха и 0,8 секунды после него игнорируются. Два пальца меняют масштаб рисунка, а не страницы.</p>
     <details><summary>Управление и справка</summary><p>Два пальца — масштаб и перемещение. Один палец — выбранный инструмент. Удерживайте кнопку пипетки или ластика для временного включения. На компьютере доступны горячие клавиши.</p><button id="settingsHelp" type="button">Горячие клавиши</button></details>
     <details><summary>Черновик</summary><p id="settingsDraftState"></p><p class="muted">Черновик хранится в этом браузере. Для переноса и продолжения работы со слоями сохраните проект .contour.</p><button id="settingsRestoreDraft" type="button">Проверить черновик</button></details>
-    <details><summary>О программе</summary><p>Контур · 0.7.3</p><p class="muted">Изображения обрабатываются на вашем устройстве.</p></details>
+    <details><summary>О программе</summary><p>Контур · 0.7.4</p><p class="muted">Изображения обрабатываются на вашем устройстве.</p></details>
     <div class="dialog-actions"><button id="resetSettings" type="button">Сбросить настройки</button><button class="accent">Закрыть</button></div></form>`;
   document.body.append(dialog);
   const settingFields={Layout:'layout',Language:'language',Theme:'theme',Density:'density',Finger:'finger',Pressure:'pressure',PressureMin:'pressureMin',Offset:'offset',Cursor:'cursor',Crosshair:'crosshair',Loupe:'loupe',QuickShape:'quickShape',FillPreview:'fillPreview',Grid:'grid'};
@@ -96,5 +98,6 @@
   layerList.addEventListener('pointermove',e=>{if(!layerDrag)return;e.preventDefault();const row=document.elementFromPoint?.(e.clientX,e.clientY)?.closest('.layer-row');for(const r of layerList.children)r.classList.remove('drop-above','drop-below');if(row&&row.dataset.id!==layerDrag.id)row.classList.add(e.clientY<row.getBoundingClientRect().top+row.getBoundingClientRect().height/2?'drop-above':'drop-below');});
   layerList.addEventListener('pointerup',e=>{if(!layerDrag||e.pointerId!==layerDrag.pointerId)return;e.preventDefault();const drag=layerDrag;layerDrag=null;const row=document.elementFromPoint?.(e.clientX,e.clientY)?.closest('.layer-row');if(row)E.reorderLayer(drag.id,row.dataset.id,e.clientY<row.getBoundingClientRect().top+row.getBoundingClientRect().height/2);for(const r of layerList.children)r.classList.remove('touch-dragging','drop-above','drop-below');});
   layerList.addEventListener('pointercancel',()=>{layerDrag=null;for(const r of layerList.children)r.classList.remove('touch-dragging','drop-above','drop-below');});
-  window.ContourInterface={prefs,sync,showLoupe,hideLoupe:()=>loupe.hidden=true,closePanel};apply();I?.setLanguage(prefs.language);I?.refresh(document.body);
+  function cancelTouchDrag(){layerDrag=null;for(const r of layerList.children)r.classList.remove('touch-dragging','drop-above','drop-below');clearHint();}
+  window.ContourInterface={prefs,sync,showLoupe,hideLoupe:()=>loupe.hidden=true,closePanel,cancelTouchDrag};apply();I?.setLanguage(prefs.language);I?.refresh(document.body);
 })();

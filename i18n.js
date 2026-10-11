@@ -18,6 +18,8 @@
   "Стандартные": "Standard",
   "Увеличенные": "Large",
   "Пальцем": "Finger input",
+  "Только перемещать": "Navigate only",
+  "Авто: после первого использования стилуса пальцы только перемещают лист. Касания во время штриха и 0,8 секунды после него игнорируются. Два пальца меняют масштаб рисунка, а не страницы.": "Auto: after the first pen use, fingers only pan the sheet. Touches during a stroke and for 0.8 seconds afterwards are ignored. Two fingers zoom the drawing, not the page.",
   "Рисовать": "Draw",
   "Перемещать": "Navigate",
   "Нажатие стилуса": "Pen pressure",
@@ -528,7 +530,7 @@
   "Кокэ · светлая интерпретация футааи": "Koke · light futaai interpretation",
   "Кокэ · футааи, сине-фиолетовый": "Koke · futaai, blue-purple"
 };
-  Object.assign(en,{"Контур · 0.7.3":"Contour · 0.7.3","Редактор для раскрашивания · 0.7.3":"Coloring editor · 0.7.3","Перетащите слой, чтобы изменить порядок":"Drag to reorder layers","Порядок слоя":"Layer order","Переименовать слой":"Rename layer","Копировать":"Copy","Вырезать":"Cut","Вставить":"Paste","Пальцами: масштаб и перемещение":"Two fingers: zoom and pan"});
+  Object.assign(en,{"Контур · 0.7.4":"Contour · 0.7.4","Редактор для раскрашивания · 0.7.4":"Coloring editor · 0.7.4","Перетащите слой, чтобы изменить порядок":"Drag to reorder layers","Порядок слоя":"Layer order","Переименовать слой":"Rename layer","Копировать":"Copy","Вырезать":"Cut","Вставить":"Paste","Пальцами: масштаб и перемещение":"Two fingers: zoom and pan"});
   Object.assign(en,{"Повреждённый TIFF.":"Invalid TIFF file.","Неизвестный TIFF.":"Unknown TIFF format.","Поддерживается обычный TIFF, без BigTIFF.":"Standard TIFF is supported; BigTIFF is not.","Повреждённые теги TIFF.":"Invalid TIFF tags.","Этот TIFF использует неподдерживаемое сжатие или цветовой режим. Откройте PNG/JPEG либо TIFF RGB без сжатия.":"This TIFF uses unsupported compression or color mode. Open PNG/JPEG or uncompressed RGB TIFF.","Повреждённые полосы TIFF.":"Invalid TIFF strips.","Неполные пиксели TIFF.":"Incomplete TIFF pixel data."});
   const reverse=Object.fromEntries(Object.entries(en).map(([a,b])=>[b,a]));
   const canonical=source=>{const trimmed=source.trim();return reverse[trimmed]?source.replace(trimmed,reverse[trimmed]):source;};

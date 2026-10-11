@@ -3,7 +3,47 @@
   'use strict';
   const $=id=>document.getElementById(id),C=window.ContourCore;
   const untitled=()=>window.ContourI18n?.language==='en'?'Untitled':'Без названия';
-  const preferences=()=>window.ContourInterface?.prefs||{pressure:'size',pressureMin:0,finger:'draw',cursor:true,offset:0};
+  const preferences=()=>window.ContourInterface?.prefs||{pressure:'size',pressureMin:0,finger:'auto',cursor:true,offset:0};
+  // Install before other capture handlers: a palm must not even commit a preview.
+  const penContacts=new Set(),fingerContacts=new Map(),blockedFingers=new Set();
+  let penSeen=false,palmUntil=0,lastBlockedTap=null;
+  try{penSeen=localStorage.getItem('contour-pen-used')==='true';}catch{}
+  const nativeEditable=target=>!!target?.closest?.('input,textarea,[contenteditable]:not([contenteditable="false"])');
+  const palmActive=()=>penContacts.size>0||Date.now()<palmUntil;
+  const cancelNative=e=>{if(e.cancelable)e.preventDefault();};
+  function blockFinger(e){cancelNative(e);e.stopImmediatePropagation();lastBlockedTap={target:e.target,x:e.clientX,y:e.clientY,until:Date.now()+1200};}
+  document.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='pen'){
+      penContacts.add(e.pointerId);penSeen=true;try{localStorage.setItem('contour-pen-used','true');}catch{}
+      for(const [id,target]of fingerContacts)if(!target.closest?.('.touch-commands'))blockedFingers.add(id);
+      if(touches.size){cancelFirstTouch();touches.clear();touchStart=touchNavigation=null;suppressTouch=false;}
+      window.ContourInterface?.cancelTouchDrag?.();return;
+    }
+    if(e.pointerType!=='touch')return;fingerContacts.set(e.pointerId,e.target);
+    if(palmActive()){blockedFingers.add(e.pointerId);blockFinger(e);}
+  },true);
+  document.addEventListener('pointermove',e=>{if(e.pointerType==='touch'&&blockedFingers.has(e.pointerId))blockFinger(e);},true);
+  for(const type of ['pointerup','pointercancel'])document.addEventListener(type,e=>{
+    if(e.pointerType==='pen'){penContacts.delete(e.pointerId);palmUntil=Date.now()+800;return;}
+    if(e.pointerType!=='touch')return;fingerContacts.delete(e.pointerId);
+    if(blockedFingers.delete(e.pointerId))blockFinger(e);
+  },true);
+  document.addEventListener('click',e=>{
+    if(e.pointerType==='pen'||e.detail===0)return;
+    const touch=e.pointerType==='touch'||e.sourceCapabilities?.firesTouchEvents;
+    const rejectedTap=lastBlockedTap&&Date.now()<lastBlockedTap.until&&
+      (e.target===lastBlockedTap.target||Math.hypot(e.clientX-lastBlockedTap.x,e.clientY-lastBlockedTap.y)<25);
+    if(touch&&(palmActive()||rejectedTap)||!e.pointerType&&rejectedTap){cancelNative(e);e.stopImmediatePropagation();}
+  },true);
+  // Safari's legacy gesture events are separate from our canvas Pointer Events.
+  for(const type of ['gesturestart','gesturechange','gestureend'])document.addEventListener(type,cancelNative,{capture:true,passive:false});
+  for(const type of ['touchstart','touchmove'])document.addEventListener(type,e=>{if(e.touches.length>1)cancelNative(e);},{capture:true,passive:false});
+  document.addEventListener('selectstart',e=>{if(!nativeEditable(e.target))cancelNative(e);},true);
+  document.addEventListener('contextmenu',e=>{if(!nativeEditable(e.target))cancelNative(e);},true);
+  document.addEventListener('dragstart',e=>{if(!nativeEditable(e.target)&&!e.target.closest?.('.layer-row'))cancelNative(e);},true);
+  document.addEventListener('wheel',e=>{if(e.ctrlKey&&!e.target.closest?.('#viewport,#referenceViewport'))cancelNative(e);},{passive:false});
+  window.addEventListener('blur',()=>{penContacts.clear();fingerContacts.clear();blockedFingers.clear();palmUntil=Date.now()+800;});
+  const fingerNavigates=()=>preferences().finger==='pan'||preferences().finger==='auto'&&penSeen;
   const MAX_PIXELS=24_000_000,MAX_SIDE=8192,MAX_LAYER_PIXELS=120_000_000,HISTORY_BYTES=96*1024*1024;
   const TILE_SIZE=128,thumbnails=new WeakMap();
   let width=960,height=720,layers=[],activeId='',selection=null,selectionCount=0,tool='brush',zoom=1,revision=0,revisionCounter=0,savedRevision=0,filename='Без названия',started=false;
@@ -232,8 +272,9 @@
 
   viewport.addEventListener('pointerdown',e=>{
     if(fillOperation||e.target.closest('#welcome'))return;if(e.button!==0&&e.button!==1)return;viewport.focus({preventScroll:true});shiftHeld=e.shiftKey;const p=point(e);lastPoint=p;trackCursor(e,p);const effective=effectiveTool();
-    if(e.target.closest('[data-canvas-edge]')){settlePreviews();gesture={kind:'canvasResize',edge:e.target.closest('[data-canvas-edge]').dataset.canvasEdge,start:p,oldW:width,oldH:height,w:width,h:height,pointerId:e.pointerId};}
-    else if(space||effective==='pan'||e.button===1||e.pointerType==='touch'&&preferences().finger==='pan'){gesture={kind:'pan',startX:e.clientX,startY:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop,pointerId:e.pointerId};viewport.style.cursor='grabbing';}
+    if(e.pointerType==='touch'&&fingerNavigates()){gesture={kind:'pan',startX:e.clientX,startY:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop,pointerId:e.pointerId};viewport.style.cursor='grabbing';}
+    else if(e.target.closest('[data-canvas-edge]')){settlePreviews();gesture={kind:'canvasResize',edge:e.target.closest('[data-canvas-edge]').dataset.canvasEdge,start:p,oldW:width,oldH:height,w:width,h:height,pointerId:e.pointerId};}
+    else if(space||effective==='pan'||e.button===1){gesture={kind:'pan',startX:e.clientX,startY:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop,pointerId:e.pointerId};viewport.style.cursor='grabbing';}
     else if(brushSizeHeld&&['brush','pencil','eraser','line','curve','shape'].includes(effective)){gesture={kind:'brushSize',startX:e.clientX,oldSize:Number($('brushSize').value),pointerId:e.pointerId};}
     else if(selectionMoveHeld&&selection)beginSelectionMove(p,e);
     else if(effective==='move'){beginTransform(p,e);}

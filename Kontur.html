@@ -120,11 +120,19 @@ body,.topbar,.options-bar,.sidebar,.document-bar,.canvas-area,#viewport,#welcome
 :root[data-layout=desktop] .tools .tool-menu-arrow{width:18px;height:18px;min-height:18px}
 .topbar .history button{min-width:38px;min-height:38px;display:grid;place-items:center}
 #mobilePanel .layer-panel>.section-title{display:flex;font-size:0;justify-content:flex-end}
+
+/* The editor owns zoom; scrollable panels retain one-finger scrolling. */
+html,body{touch-action:pan-y;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+button,summary,label,.layer-row,canvas,#viewport{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,[contenteditable]:not([contenteditable="false"]){-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+.sidebar,.tools,.interface-menu,#mobilePanel,dialog{touch-action:pan-y;overscroll-behavior:contain}
+#viewport,#referenceViewport,#referenceCanvas,.touch-commands button{touch-action:none}
+@media (any-pointer:coarse){input:not([type=checkbox]):not([type=range]):not([type=color]),select,textarea{font-size:16px!important}}
 </style>
 </head>
 <body>
 <header class="topbar">
-<div class="brand"><span class="brand-mark">К</span><span>Контур<small>Редактор для раскрашивания · 0.7.3</small></span></div>
+<div class="brand"><span class="brand-mark">К</span><span>Контур<small>Редактор для раскрашивания · 0.7.4</small></span></div>
 <nav aria-label="Файл"><button id="newDoc" title="Новый лист" aria-label="Новый лист" data-icon="file"></button><button id="openImage" title="Открыть файл (Ctrl O)" aria-label="Открыть файл" data-icon="folder"></button><button id="importLayer" title="Открыть изображение на новом слое" aria-label="Добавить изображение…" data-icon="import"></button><button id="resizeCanvas" title="Размер листа" aria-label="Размер листа" data-icon="expand"></button><button id="saveProject" class="accent" title="Сохранить как… (Ctrl S)">Сохранить ▾</button><button id="referenceToggle" title="Окно референса: изображение поверх редактора" aria-label="Открыть окно референса" data-icon="reference"></button><button id="themeToggle" title="Светлая тема" aria-label="Включить светлую тему" aria-pressed="false" data-icon="sun"></button></nav>
 <div class="file-actions"><button id="help" class="help-button" aria-label="Горячие клавиши">?</button></div>
 </header>
@@ -401,6 +409,8 @@ root.ContourFormats={encodeTiff,decodeTiff};if(typeof module!=='undefined')modul
   "Стандартные": "Standard",
   "Увеличенные": "Large",
   "Пальцем": "Finger input",
+  "Только перемещать": "Navigate only",
+  "Авто: после первого использования стилуса пальцы только перемещают лист. Касания во время штриха и 0,8 секунды после него игнорируются. Два пальца меняют масштаб рисунка, а не страницы.": "Auto: after the first pen use, fingers only pan the sheet. Touches during a stroke and for 0.8 seconds afterwards are ignored. Two fingers zoom the drawing, not the page.",
   "Рисовать": "Draw",
   "Перемещать": "Navigate",
   "Нажатие стилуса": "Pen pressure",
@@ -911,7 +921,7 @@ root.ContourFormats={encodeTiff,decodeTiff};if(typeof module!=='undefined')modul
   "Кокэ · светлая интерпретация футааи": "Koke · light futaai interpretation",
   "Кокэ · футааи, сине-фиолетовый": "Koke · futaai, blue-purple"
 };
-  Object.assign(en,{"Контур · 0.7.3":"Contour · 0.7.3","Редактор для раскрашивания · 0.7.3":"Coloring editor · 0.7.3","Перетащите слой, чтобы изменить порядок":"Drag to reorder layers","Порядок слоя":"Layer order","Переименовать слой":"Rename layer","Копировать":"Copy","Вырезать":"Cut","Вставить":"Paste","Пальцами: масштаб и перемещение":"Two fingers: zoom and pan"});
+  Object.assign(en,{"Контур · 0.7.4":"Contour · 0.7.4","Редактор для раскрашивания · 0.7.4":"Coloring editor · 0.7.4","Перетащите слой, чтобы изменить порядок":"Drag to reorder layers","Порядок слоя":"Layer order","Переименовать слой":"Rename layer","Копировать":"Copy","Вырезать":"Cut","Вставить":"Paste","Пальцами: масштаб и перемещение":"Two fingers: zoom and pan"});
   Object.assign(en,{"Повреждённый TIFF.":"Invalid TIFF file.","Неизвестный TIFF.":"Unknown TIFF format.","Поддерживается обычный TIFF, без BigTIFF.":"Standard TIFF is supported; BigTIFF is not.","Повреждённые теги TIFF.":"Invalid TIFF tags.","Этот TIFF использует неподдерживаемое сжатие или цветовой режим. Откройте PNG/JPEG либо TIFF RGB без сжатия.":"This TIFF uses unsupported compression or color mode. Open PNG/JPEG or uncompressed RGB TIFF.","Повреждённые полосы TIFF.":"Invalid TIFF strips.","Неполные пиксели TIFF.":"Incomplete TIFF pixel data."});
   const reverse=Object.fromEntries(Object.entries(en).map(([a,b])=>[b,a]));
   const canonical=source=>{const trimmed=source.trim();return reverse[trimmed]?source.replace(trimmed,reverse[trimmed]):source;};
@@ -957,7 +967,47 @@ root.ContourFormats={encodeTiff,decodeTiff};if(typeof module!=='undefined')modul
   'use strict';
   const $=id=>document.getElementById(id),C=window.ContourCore;
   const untitled=()=>window.ContourI18n?.language==='en'?'Untitled':'Без названия';
-  const preferences=()=>window.ContourInterface?.prefs||{pressure:'size',pressureMin:0,finger:'draw',cursor:true,offset:0};
+  const preferences=()=>window.ContourInterface?.prefs||{pressure:'size',pressureMin:0,finger:'auto',cursor:true,offset:0};
+  // Install before other capture handlers: a palm must not even commit a preview.
+  const penContacts=new Set(),fingerContacts=new Map(),blockedFingers=new Set();
+  let penSeen=false,palmUntil=0,lastBlockedTap=null;
+  try{penSeen=localStorage.getItem('contour-pen-used')==='true';}catch{}
+  const nativeEditable=target=>!!target?.closest?.('input,textarea,[contenteditable]:not([contenteditable="false"])');
+  const palmActive=()=>penContacts.size>0||Date.now()<palmUntil;
+  const cancelNative=e=>{if(e.cancelable)e.preventDefault();};
+  function blockFinger(e){cancelNative(e);e.stopImmediatePropagation();lastBlockedTap={target:e.target,x:e.clientX,y:e.clientY,until:Date.now()+1200};}
+  document.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='pen'){
+      penContacts.add(e.pointerId);penSeen=true;try{localStorage.setItem('contour-pen-used','true');}catch{}
+      for(const [id,target]of fingerContacts)if(!target.closest?.('.touch-commands'))blockedFingers.add(id);
+      if(touches.size){cancelFirstTouch();touches.clear();touchStart=touchNavigation=null;suppressTouch=false;}
+      window.ContourInterface?.cancelTouchDrag?.();return;
+    }
+    if(e.pointerType!=='touch')return;fingerContacts.set(e.pointerId,e.target);
+    if(palmActive()){blockedFingers.add(e.pointerId);blockFinger(e);}
+  },true);
+  document.addEventListener('pointermove',e=>{if(e.pointerType==='touch'&&blockedFingers.has(e.pointerId))blockFinger(e);},true);
+  for(const type of ['pointerup','pointercancel'])document.addEventListener(type,e=>{
+    if(e.pointerType==='pen'){penContacts.delete(e.pointerId);palmUntil=Date.now()+800;return;}
+    if(e.pointerType!=='touch')return;fingerContacts.delete(e.pointerId);
+    if(blockedFingers.delete(e.pointerId))blockFinger(e);
+  },true);
+  document.addEventListener('click',e=>{
+    if(e.pointerType==='pen'||e.detail===0)return;
+    const touch=e.pointerType==='touch'||e.sourceCapabilities?.firesTouchEvents;
+    const rejectedTap=lastBlockedTap&&Date.now()<lastBlockedTap.until&&
+      (e.target===lastBlockedTap.target||Math.hypot(e.clientX-lastBlockedTap.x,e.clientY-lastBlockedTap.y)<25);
+    if(touch&&(palmActive()||rejectedTap)||!e.pointerType&&rejectedTap){cancelNative(e);e.stopImmediatePropagation();}
+  },true);
+  // Safari's legacy gesture events are separate from our canvas Pointer Events.
+  for(const type of ['gesturestart','gesturechange','gestureend'])document.addEventListener(type,cancelNative,{capture:true,passive:false});
+  for(const type of ['touchstart','touchmove'])document.addEventListener(type,e=>{if(e.touches.length>1)cancelNative(e);},{capture:true,passive:false});
+  document.addEventListener('selectstart',e=>{if(!nativeEditable(e.target))cancelNative(e);},true);
+  document.addEventListener('contextmenu',e=>{if(!nativeEditable(e.target))cancelNative(e);},true);
+  document.addEventListener('dragstart',e=>{if(!nativeEditable(e.target)&&!e.target.closest?.('.layer-row'))cancelNative(e);},true);
+  document.addEventListener('wheel',e=>{if(e.ctrlKey&&!e.target.closest?.('#viewport,#referenceViewport'))cancelNative(e);},{passive:false});
+  window.addEventListener('blur',()=>{penContacts.clear();fingerContacts.clear();blockedFingers.clear();palmUntil=Date.now()+800;});
+  const fingerNavigates=()=>preferences().finger==='pan'||preferences().finger==='auto'&&penSeen;
   const MAX_PIXELS=24_000_000,MAX_SIDE=8192,MAX_LAYER_PIXELS=120_000_000,HISTORY_BYTES=96*1024*1024;
   const TILE_SIZE=128,thumbnails=new WeakMap();
   let width=960,height=720,layers=[],activeId='',selection=null,selectionCount=0,tool='brush',zoom=1,revision=0,revisionCounter=0,savedRevision=0,filename='Без названия',started=false;
@@ -1186,8 +1236,9 @@ root.ContourFormats={encodeTiff,decodeTiff};if(typeof module!=='undefined')modul
 
   viewport.addEventListener('pointerdown',e=>{
     if(fillOperation||e.target.closest('#welcome'))return;if(e.button!==0&&e.button!==1)return;viewport.focus({preventScroll:true});shiftHeld=e.shiftKey;const p=point(e);lastPoint=p;trackCursor(e,p);const effective=effectiveTool();
-    if(e.target.closest('[data-canvas-edge]')){settlePreviews();gesture={kind:'canvasResize',edge:e.target.closest('[data-canvas-edge]').dataset.canvasEdge,start:p,oldW:width,oldH:height,w:width,h:height,pointerId:e.pointerId};}
-    else if(space||effective==='pan'||e.button===1||e.pointerType==='touch'&&preferences().finger==='pan'){gesture={kind:'pan',startX:e.clientX,startY:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop,pointerId:e.pointerId};viewport.style.cursor='grabbing';}
+    if(e.pointerType==='touch'&&fingerNavigates()){gesture={kind:'pan',startX:e.clientX,startY:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop,pointerId:e.pointerId};viewport.style.cursor='grabbing';}
+    else if(e.target.closest('[data-canvas-edge]')){settlePreviews();gesture={kind:'canvasResize',edge:e.target.closest('[data-canvas-edge]').dataset.canvasEdge,start:p,oldW:width,oldH:height,w:width,h:height,pointerId:e.pointerId};}
+    else if(space||effective==='pan'||e.button===1){gesture={kind:'pan',startX:e.clientX,startY:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop,pointerId:e.pointerId};viewport.style.cursor='grabbing';}
     else if(brushSizeHeld&&['brush','pencil','eraser','line','curve','shape'].includes(effective)){gesture={kind:'brushSize',startX:e.clientX,oldSize:Number($('brushSize').value),pointerId:e.pointerId};}
     else if(selectionMoveHeld&&selection)beginSelectionMove(p,e);
     else if(effective==='move'){beginTransform(p,e);}
@@ -1655,17 +1706,18 @@ root.ContourFormats={encodeTiff,decodeTiff};if(typeof module!=='undefined')modul
 (()=>{
   'use strict';
   const $=id=>document.getElementById(id), E=window.ContourEditor, I=window.ContourI18n;
-  const defaults={layout:'auto',language: I?.language||'ru',theme:document.documentElement.dataset.theme||'dark',density:'standard',finger:'draw',cursor:true,crosshair:false,loupe:true,offset:0,pressure:'size',pressureMin:0,quickShape:true,fillPreview:true,grid:true};
+  const defaults={layout:'auto',language: I?.language||'ru',theme:document.documentElement.dataset.theme||'dark',density:'standard',finger:'auto',cursor:true,crosshair:false,loupe:true,offset:0,pressure:'size',pressureMin:0,quickShape:true,fillPreview:true,grid:true};
   let saved={};try{saved=JSON.parse(localStorage.getItem('contour-settings'))||{};}catch{}
   // Replace the former 10% default once; preserve other values and new explicit choices.
   if(saved.pressureResponse!==2&&saved.pressureMin===10)saved.pressureMin=0;
+  if(saved.touchPolicy!==2&&saved.finger==='draw')saved.finger='auto';
   const prefs={...defaults};for(const k of Object.keys(defaults))if(typeof saved[k]===typeof defaults[k])prefs[k]=saved[k];
-  for(const [key,values] of Object.entries({layout:['auto','mobile','desktop'],language:['ru','en'],theme:['dark','light','system'],density:['standard','large'],finger:['draw','pan'],pressure:['off','size','opacity','both']}))if(!values.includes(prefs[key]))prefs[key]=defaults[key];
+  for(const [key,values] of Object.entries({layout:['auto','mobile','desktop'],language:['ru','en'],theme:['dark','light','system'],density:['standard','large'],finger:['auto','draw','pan'],pressure:['off','size','opacity','both']}))if(!values.includes(prefs[key]))prefs[key]=defaults[key];
   prefs.offset=Math.max(0,Math.min(80,prefs.offset));prefs.pressureMin=Math.max(0,Math.min(100,prefs.pressureMin));
   const root=document.documentElement, tools=document.querySelector('.tools'),sidebar=document.querySelector('.sidebar'),options=document.querySelector('.options-bar'),top=document.querySelector('.topbar'),history=document.querySelector('.history');
   const icon=(name)=>({settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z M9 3h6l1 3 3 1 2 4-2 3v3l-4 2-3-1-3 1-4-2v-3l-2-3 2-4 3-1Z',menu:'M4 6h16M4 12h16M4 18h16',layers:'M12 3 2 8l10 5 10-5-10-5ZM2 12l10 5 10-5M2 16l10 5 10-5',color:'M12 3C7 8 5 11 5 15a7 7 0 0 0 14 0c0-4-2-7-7-12Z',options:'M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6',view:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z'}[name]||'M5 12h14M12 5v14');
   function button(id,label,kind){const b=document.createElement('button');b.id=id;b.type='button';b.setAttribute('aria-label',label);b.title=label;b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+icon(kind)+'"/></svg>';return b;}
-  function save(){try{localStorage.setItem('contour-settings',JSON.stringify({...prefs,pressureResponse:2}));}catch{}}
+  function save(){try{localStorage.setItem('contour-settings',JSON.stringify({...prefs,pressureResponse:2,touchPolicy:2}));}catch{}}
   function apply(){
     const mobile=prefs.layout==='mobile'||prefs.layout==='auto'&&innerWidth<800;
     const before=root.dataset.layout,view=before?E.captureView():null;root.dataset.layout=mobile?'mobile':'desktop';root.dataset.density=prefs.density;root.dataset.grid=String(prefs.grid);root.dataset.crosshair=String(prefs.crosshair);
@@ -1712,7 +1764,7 @@ root.ContourFormats={encodeTiff,decodeTiff};if(typeof module!=='undefined')modul
     <label>Язык<select id="settingLanguage"><option value="ru" lang="ru" data-user-text>Русский</option><option value="en" lang="en" data-user-text>English</option></select></label>
     <label>Тема<select id="settingTheme"><option value="dark">Тёмная</option><option value="light">Светлая</option><option value="system">Системная</option></select></label>
     <label>Элементы<select id="settingDensity"><option value="standard">Стандартные</option><option value="large">Увеличенные</option></select></label>
-    <label>Пальцем<select id="settingFinger"><option value="draw">Рисовать</option><option value="pan">Перемещать</option></select></label>
+    <label>Пальцем<select id="settingFinger"><option value="auto">Авто</option><option value="draw">Рисовать</option><option value="pan">Только перемещать</option></select></label>
     <label>Нажатие стилуса<select id="settingPressure"><option value="size">Размер</option><option value="opacity">Непрозрачность</option><option value="both">Размер и непрозрачность</option><option value="off">Выключено</option></select></label>
     <label>Минимальный размер, %<input id="settingPressureMin" type="number" min="0" max="100"></label>
     <label>Смещение касания, px<input id="settingOffset" type="number" min="0" max="80"></label>
@@ -1720,9 +1772,10 @@ root.ContourFormats={encodeTiff,decodeTiff};if(typeof module!=='undefined')modul
     <label><input id="settingLoupe" type="checkbox">Лупа при касании</label><label><input id="settingQuickShape" type="checkbox">Автофигура</label>
     <label><input id="settingFillPreview" type="checkbox">Предпросмотр заливки</label><label><input id="settingGrid" type="checkbox">Сетка рабочей области</label></div>
     <p class="muted">Нажатие работает, если стилус и браузер передают его силу. Мышь и палец используют обычный размер. Изменение непрозрачности включается отдельно.</p>
+    <p class="muted">Авто: после первого использования стилуса пальцы только перемещают лист. Касания во время штриха и 0,8 секунды после него игнорируются. Два пальца меняют масштаб рисунка, а не страницы.</p>
     <details><summary>Управление и справка</summary><p>Два пальца — масштаб и перемещение. Один палец — выбранный инструмент. Удерживайте кнопку пипетки или ластика для временного включения. На компьютере доступны горячие клавиши.</p><button id="settingsHelp" type="button">Горячие клавиши</button></details>
     <details><summary>Черновик</summary><p id="settingsDraftState"></p><p class="muted">Черновик хранится в этом браузере. Для переноса и продолжения работы со слоями сохраните проект .contour.</p><button id="settingsRestoreDraft" type="button">Проверить черновик</button></details>
-    <details><summary>О программе</summary><p>Контур · 0.7.3</p><p class="muted">Изображения обрабатываются на вашем устройстве.</p></details>
+    <details><summary>О программе</summary><p>Контур · 0.7.4</p><p class="muted">Изображения обрабатываются на вашем устройстве.</p></details>
     <div class="dialog-actions"><button id="resetSettings" type="button">Сбросить настройки</button><button class="accent">Закрыть</button></div></form>`;
   document.body.append(dialog);
   const settingFields={Layout:'layout',Language:'language',Theme:'theme',Density:'density',Finger:'finger',Pressure:'pressure',PressureMin:'pressureMin',Offset:'offset',Cursor:'cursor',Crosshair:'crosshair',Loupe:'loupe',QuickShape:'quickShape',FillPreview:'fillPreview',Grid:'grid'};
@@ -1749,7 +1802,8 @@ root.ContourFormats={encodeTiff,decodeTiff};if(typeof module!=='undefined')modul
   layerList.addEventListener('pointermove',e=>{if(!layerDrag)return;e.preventDefault();const row=document.elementFromPoint?.(e.clientX,e.clientY)?.closest('.layer-row');for(const r of layerList.children)r.classList.remove('drop-above','drop-below');if(row&&row.dataset.id!==layerDrag.id)row.classList.add(e.clientY<row.getBoundingClientRect().top+row.getBoundingClientRect().height/2?'drop-above':'drop-below');});
   layerList.addEventListener('pointerup',e=>{if(!layerDrag||e.pointerId!==layerDrag.pointerId)return;e.preventDefault();const drag=layerDrag;layerDrag=null;const row=document.elementFromPoint?.(e.clientX,e.clientY)?.closest('.layer-row');if(row)E.reorderLayer(drag.id,row.dataset.id,e.clientY<row.getBoundingClientRect().top+row.getBoundingClientRect().height/2);for(const r of layerList.children)r.classList.remove('touch-dragging','drop-above','drop-below');});
   layerList.addEventListener('pointercancel',()=>{layerDrag=null;for(const r of layerList.children)r.classList.remove('touch-dragging','drop-above','drop-below');});
-  window.ContourInterface={prefs,sync,showLoupe,hideLoupe:()=>loupe.hidden=true,closePanel};apply();I?.setLanguage(prefs.language);I?.refresh(document.body);
+  function cancelTouchDrag(){layerDrag=null;for(const r of layerList.children)r.classList.remove('touch-dragging','drop-above','drop-below');clearHint();}
+  window.ContourInterface={prefs,sync,showLoupe,hideLoupe:()=>loupe.hidden=true,closePanel,cancelTouchDrag};apply();I?.setLanguage(prefs.language);I?.refresh(document.body);
 })();
 </script>
 </body>
